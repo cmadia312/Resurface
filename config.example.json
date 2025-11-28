@@ -1,0 +1,6 @@
+{
+  "api_provider": "openai",
+  "model": "gpt-4o-mini",
+  "api_key": "",
+  "rate_limit": 20
+}

@@ -1,0 +1,24 @@
+# Credentials and API Keys
+config.json
+.env
+.env.*
+
+# Personal Conversation Data (CRITICAL - do not upload)
+data/conversations.json
+data/parsed/
+data/extractions/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+env/
+
+# Claude local settings
+.claude/settings.local.json
+
+# OS files
+.DS_Store
+Thumbs.db
