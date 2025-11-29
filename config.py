@@ -14,8 +14,9 @@ DEFAULT_CONFIG = {
     "api_provider": "openai",      # "anthropic" or "openai"
     "model": "gpt-4o-mini",
     "api_key": "",                    # user provides, or use env var
-    "requests_per_minute": 20,        # rate limiting
-    "retry_attempts": 2
+    "requests_per_minute": 60,        # rate limiting (1 request/second)
+    "retry_attempts": 2,
+    "theme_color": "#00ff00"          # UI theme color (hex)
 }
 
 

@@ -12,7 +12,9 @@ Usage:
 """
 import argparse
 import json
+import os
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +26,38 @@ from extractor import extract_conversation
 PARSED_DIR = Path("data/parsed")
 EXTRACTIONS_DIR = Path("data/extractions")
 MANIFEST_FILE = PARSED_DIR / "_manifest.json"
+STATUS_FILE = Path("data/extraction_status.json")
+
+
+def update_status(message: str, progress_pct: float,
+                  current: int, total: int,
+                  elapsed_sec: float, eta_sec: float | None,
+                  complete: bool = False, error: bool = False):
+    """Atomically update extraction status file."""
+    status = {
+        "message": message,
+        "progress": progress_pct,
+        "current": current,
+        "total": total,
+        "elapsed_seconds": elapsed_sec,
+        "eta_seconds": eta_sec,
+        "complete": complete,
+        "error": error,
+        "timestamp": datetime.now().isoformat(),
+        "pid": os.getpid()
+    }
+    STATUS_FILE.parent.mkdir(exist_ok=True)
+
+    # Atomic write: write to temp, then rename
+    fd, tmp_path = tempfile.mkstemp(dir=STATUS_FILE.parent, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(status, f)
+        os.replace(tmp_path, STATUS_FILE)  # Atomic on POSIX
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
 
 
 def ensure_dirs():
@@ -144,6 +178,7 @@ def run_extraction(count: int = None, conversation_ids: list = None) -> dict:
     is_valid, error = validate_config(config)
     if not is_valid:
         print(f"Configuration error: {error}")
+        update_status(f"Configuration error: {error}", 0, 0, 0, 0, None, error=True)
         return {"processed": 0, "empty": 0, "errors": 1, "error_ids": ["config"]}
 
     # Determine which conversations to process
@@ -156,10 +191,11 @@ def run_extraction(count: int = None, conversation_ids: list = None) -> dict:
 
     if not to_process:
         print("No conversations to process.")
+        update_status("No conversations to process.", 100, 0, 0, 0, 0, complete=True)
         return {"processed": 0, "empty": 0, "errors": 0, "error_ids": []}
 
     # Rate limiting setup
-    rpm = config.get('requests_per_minute', 20)
+    rpm = config.get('requests_per_minute', 60)
     delay = 60.0 / rpm
 
     # Stats
@@ -176,6 +212,10 @@ def run_extraction(count: int = None, conversation_ids: list = None) -> dict:
     print(f"Extracting {total} conversations using {model}...")
     print(f"Rate limit: {rpm} requests/minute ({delay:.1f}s between requests)")
     print()
+
+    # Timing
+    start_time = time.time()
+    update_status(f"Starting extraction of {total} conversations...", 0, 0, total, 0, None)
 
     for i, conv_meta in enumerate(to_process):
         conv_id = conv_meta['id']
@@ -196,6 +236,18 @@ def run_extraction(count: int = None, conversation_ids: list = None) -> dict:
         title = conversation.get('title', 'Untitled')[:50]
         print(f"[{i+1}/{total}] Extracting \"{title}\"...")
 
+        # Calculate timing and update status before extraction
+        elapsed = time.time() - start_time
+        items_done = i
+        if items_done > 0:
+            avg_per_item = elapsed / items_done
+            eta = avg_per_item * (total - items_done)
+        else:
+            eta = None
+
+        progress_pct = (i / total) * 100
+        update_status(f"Extracting: {title}", progress_pct, i + 1, total, elapsed, eta)
+
         # Extract
         extraction = extract_conversation(conversation, config)
 
@@ -214,6 +266,9 @@ def run_extraction(count: int = None, conversation_ids: list = None) -> dict:
         if i < total - 1:
             time.sleep(delay)
 
+    # Final timing
+    final_elapsed = time.time() - start_time
+
     # Print summary
     print()
     print("=" * 50)
@@ -222,11 +277,18 @@ def run_extraction(count: int = None, conversation_ids: list = None) -> dict:
     print(f"Processed:     {stats['processed']}")
     print(f"Empty:         {stats['empty']}")
     print(f"Errors:        {stats['errors']}")
+    print(f"Total time:    {final_elapsed:.1f}s")
 
     if stats["error_ids"]:
         print(f"\nError IDs: {stats['error_ids'][:5]}")
         if len(stats["error_ids"]) > 5:
             print(f"  ... and {len(stats['error_ids']) - 5} more")
+
+    # Final status update
+    update_status(
+        f"Complete: {stats['processed']} processed, {stats['empty']} empty, {stats['errors']} errors",
+        100, total, total, final_elapsed, 0, complete=True
+    )
 
     return stats
 

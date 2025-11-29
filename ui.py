@@ -16,7 +16,53 @@ import plotly.graph_objects as go
 # Paths
 PARSED_DIR = Path("data/parsed")
 EXTRACTIONS_DIR = Path("data/extractions")
+CONSOLIDATED_DIR = Path("data/consolidated")
 MANIFEST_FILE = PARSED_DIR / "_manifest.json"
+CONSOLIDATED_FILE = CONSOLIDATED_DIR / "consolidated.json"
+ASSETS_DIR = Path(__file__).parent / "assets"
+
+# Set static paths for font files (must be done before creating the app)
+gr.set_static_paths(paths=[str(ASSETS_DIR.absolute())])
+
+# =============================================================================
+# THEME COLOR UTILITIES
+# =============================================================================
+
+import re
+
+def parse_color_to_rgb(color: str) -> tuple[int, int, int]:
+    """Parse color string (hex, rgb, rgba) to RGB tuple."""
+    color = color.strip()
+
+    # Handle hex format
+    if color.startswith('#'):
+        hex_color = color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+    # Handle rgb/rgba format: "rgb(r, g, b)" or "rgba(r, g, b, a)"
+    rgb_match = re.match(r'rgba?\s*\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)', color)
+    if rgb_match:
+        r, g, b = [min(255, max(0, int(float(x)))) for x in rgb_match.groups()]
+        return (r, g, b)
+
+    # Default to green if parsing fails
+    return (0, 255, 0)
+
+
+def generate_color_shades(color: str) -> dict:
+    """Generate color shades from a base color (hex, rgb, or rgba)."""
+    r, g, b = parse_color_to_rgb(color)
+
+    def shade(factor):
+        return f"#{int(r*factor):02x}{int(g*factor):02x}{int(b*factor):02x}"
+
+    return {
+        'full': f"#{r:02x}{g:02x}{b:02x}",
+        'dark': shade(0.4),      # 40% - subdued text, placeholders
+        'medium': shade(0.6),    # 60% - hover states
+        'dim': shade(0.2),       # 20% - row alternates, button bg
+        'faint': shade(0.1),     # 10% - subtle backgrounds
+    }
 
 # =============================================================================
 # MATRIX THEME
@@ -25,273 +71,325 @@ MANIFEST_FILE = PARSED_DIR / "_manifest.json"
 from gradio.themes.base import Base
 from gradio.themes.utils import colors, fonts, sizes
 
-# Custom green color palette for matrix theme
-class MatrixGreen(colors.Color):
-    pass
+def create_color_palette(shades: dict):
+    """Create a Gradio color palette from shades."""
+    class ThemeColor(colors.Color):
+        pass
 
-matrix_green = MatrixGreen(
-    c50="#001a00",
-    c100="#003300",
-    c200="#004d00",
-    c300="#006600",
-    c400="#008000",
-    c500="#00ff00",
-    c600="#00ff00",
-    c700="#00ff00",
-    c800="#00ff00",
-    c900="#00ff00",
-    c950="#00ff00",
-)
+    return ThemeColor(
+        c50=shades['faint'],
+        c100=shades['faint'],
+        c200=shades['dim'],
+        c300=shades['dim'],
+        c400=shades['dark'],
+        c500=shades['full'],
+        c600=shades['full'],
+        c700=shades['full'],
+        c800=shades['full'],
+        c900=shades['full'],
+        c950=shades['full'],
+    )
 
-class MatrixTheme(Base):
-    def __init__(self):
-        super().__init__(
-            primary_hue=matrix_green,
-            secondary_hue=matrix_green,
-            neutral_hue=matrix_green,
-            font=fonts.GoogleFont("Source Code Pro"),
-            font_mono=fonts.GoogleFont("Source Code Pro"),
-        )
-        # Override all colors to pure black/green
-        super().set(
-            # Body/background
-            body_background_fill="#000000",
-            body_background_fill_dark="#000000",
-            body_text_color="#00ff00",
-            body_text_color_dark="#00ff00",
-            body_text_color_subdued="#006600",
-            body_text_color_subdued_dark="#006600",
+def create_matrix_theme(theme_color: str = "#00ff00"):
+    """Create a Matrix theme with the specified color."""
+    shades = generate_color_shades(theme_color)
+    color_palette = create_color_palette(shades)
 
-            # Blocks
-            block_background_fill="#000000",
-            block_background_fill_dark="#000000",
-            block_border_color="#00ff00",
-            block_border_color_dark="#00ff00",
-            block_label_background_fill="#000000",
-            block_label_background_fill_dark="#000000",
-            block_label_text_color="#00ff00",
-            block_label_text_color_dark="#00ff00",
-            block_title_text_color="#00ff00",
-            block_title_text_color_dark="#00ff00",
+    class MatrixTheme(Base):
+        def __init__(self):
+            super().__init__(
+                primary_hue=color_palette,
+                secondary_hue=color_palette,
+                neutral_hue=color_palette,
+                font=("OpenDyslexic", "sans-serif"),
+                font_mono=("OpenDyslexicMono", "monospace"),
+            )
+            # Override all colors dynamically
+            super().set(
+                # Body/background
+                body_background_fill="#000000",
+                body_background_fill_dark="#000000",
+                body_text_color=shades['full'],
+                body_text_color_dark=shades['full'],
+                body_text_color_subdued=shades['dark'],
+                body_text_color_subdued_dark=shades['dark'],
 
-            # Panels
-            panel_background_fill="#000000",
-            panel_background_fill_dark="#000000",
-            panel_border_color="#00ff00",
-            panel_border_color_dark="#00ff00",
+                # Blocks
+                block_background_fill="#000000",
+                block_background_fill_dark="#000000",
+                block_border_color=shades['full'],
+                block_border_color_dark=shades['full'],
+                block_label_background_fill="#000000",
+                block_label_background_fill_dark="#000000",
+                block_label_text_color=shades['full'],
+                block_label_text_color_dark=shades['full'],
+                block_title_text_color=shades['full'],
+                block_title_text_color_dark=shades['full'],
 
-            # Buttons
-            button_primary_background_fill="#003300",
-            button_primary_background_fill_dark="#003300",
-            button_primary_background_fill_hover="#004d00",
-            button_primary_background_fill_hover_dark="#004d00",
-            button_primary_text_color="#00ff00",
-            button_primary_text_color_dark="#00ff00",
-            button_primary_border_color="#00ff00",
-            button_primary_border_color_dark="#00ff00",
-            button_secondary_background_fill="#000000",
-            button_secondary_background_fill_dark="#000000",
-            button_secondary_background_fill_hover="#001a00",
-            button_secondary_background_fill_hover_dark="#001a00",
-            button_secondary_text_color="#00ff00",
-            button_secondary_text_color_dark="#00ff00",
-            button_secondary_border_color="#00ff00",
-            button_secondary_border_color_dark="#00ff00",
-            button_cancel_background_fill="#000000",
-            button_cancel_background_fill_dark="#000000",
-            button_cancel_text_color="#00ff00",
-            button_cancel_text_color_dark="#00ff00",
+                # Panels
+                panel_background_fill="#000000",
+                panel_background_fill_dark="#000000",
+                panel_border_color=shades['full'],
+                panel_border_color_dark=shades['full'],
 
-            # Inputs
-            input_background_fill="#000000",
-            input_background_fill_dark="#000000",
-            input_border_color="#00ff00",
-            input_border_color_dark="#00ff00",
-            input_border_color_focus="#00ff00",
-            input_border_color_focus_dark="#00ff00",
-            input_placeholder_color="#006600",
-            input_placeholder_color_dark="#006600",
+                # Buttons
+                button_primary_background_fill=shades['dim'],
+                button_primary_background_fill_dark=shades['dim'],
+                button_primary_background_fill_hover=shades['dark'],
+                button_primary_background_fill_hover_dark=shades['dark'],
+                button_primary_text_color=shades['full'],
+                button_primary_text_color_dark=shades['full'],
+                button_primary_border_color=shades['full'],
+                button_primary_border_color_dark=shades['full'],
+                button_secondary_background_fill="#000000",
+                button_secondary_background_fill_dark="#000000",
+                button_secondary_background_fill_hover=shades['faint'],
+                button_secondary_background_fill_hover_dark=shades['faint'],
+                button_secondary_text_color=shades['full'],
+                button_secondary_text_color_dark=shades['full'],
+                button_secondary_border_color=shades['full'],
+                button_secondary_border_color_dark=shades['full'],
+                button_cancel_background_fill="#000000",
+                button_cancel_background_fill_dark="#000000",
+                button_cancel_text_color=shades['full'],
+                button_cancel_text_color_dark=shades['full'],
 
-            # Tables
-            table_border_color="#00ff00",
-            table_border_color_dark="#00ff00",
-            table_even_background_fill="#000000",
-            table_even_background_fill_dark="#000000",
-            table_odd_background_fill="#001a00",
-            table_odd_background_fill_dark="#001a00",
-            table_row_focus="#003300",
-            table_row_focus_dark="#003300",
+                # Inputs
+                input_background_fill="#000000",
+                input_background_fill_dark="#000000",
+                input_border_color=shades['full'],
+                input_border_color_dark=shades['full'],
+                input_border_color_focus=shades['full'],
+                input_border_color_focus_dark=shades['full'],
+                input_placeholder_color=shades['dark'],
+                input_placeholder_color_dark=shades['dark'],
 
-            # Checkboxes
-            checkbox_background_color="#000000",
-            checkbox_background_color_dark="#000000",
-            checkbox_background_color_selected="#00ff00",
-            checkbox_background_color_selected_dark="#00ff00",
-            checkbox_border_color="#00ff00",
-            checkbox_border_color_dark="#00ff00",
-            checkbox_label_text_color="#00ff00",
-            checkbox_label_text_color_dark="#00ff00",
+                # Tables
+                table_border_color=shades['full'],
+                table_border_color_dark=shades['full'],
+                table_even_background_fill="#000000",
+                table_even_background_fill_dark="#000000",
+                table_odd_background_fill=shades['faint'],
+                table_odd_background_fill_dark=shades['faint'],
+                table_row_focus=shades['dim'],
+                table_row_focus_dark=shades['dim'],
 
-            # Sliders
-            slider_color="#00ff00",
-            slider_color_dark="#00ff00",
+                # Checkboxes
+                checkbox_background_color="#000000",
+                checkbox_background_color_dark="#000000",
+                checkbox_background_color_selected=shades['full'],
+                checkbox_background_color_selected_dark=shades['full'],
+                checkbox_border_color=shades['full'],
+                checkbox_border_color_dark=shades['full'],
+                checkbox_label_text_color=shades['full'],
+                checkbox_label_text_color_dark=shades['full'],
 
-            # Links
-            link_text_color="#00ff00",
-            link_text_color_dark="#00ff00",
-            link_text_color_hover="#00cc00",
-            link_text_color_hover_dark="#00cc00",
-            link_text_color_visited="#009900",
-            link_text_color_visited_dark="#009900",
-            link_text_color_active="#00ff00",
-            link_text_color_active_dark="#00ff00",
+                # Sliders
+                slider_color=shades['full'],
+                slider_color_dark=shades['full'],
 
-            # Borders
-            border_color_accent="#00ff00",
-            border_color_accent_dark="#00ff00",
-            border_color_primary="#00ff00",
-            border_color_primary_dark="#00ff00",
+                # Links
+                link_text_color=shades['full'],
+                link_text_color_dark=shades['full'],
+                link_text_color_hover=shades['medium'],
+                link_text_color_hover_dark=shades['medium'],
+                link_text_color_visited=shades['medium'],
+                link_text_color_visited_dark=shades['medium'],
+                link_text_color_active=shades['full'],
+                link_text_color_active_dark=shades['full'],
 
-            # Shadows - remove them for flat look
-            shadow_drop="none",
-            shadow_drop_lg="none",
-            shadow_inset="none",
-            shadow_spread="0px",
-            shadow_spread_dark="0px",
+                # Borders
+                border_color_accent=shades['full'],
+                border_color_accent_dark=shades['full'],
+                border_color_primary=shades['full'],
+                border_color_primary_dark=shades['full'],
 
-            # Background colors
-            background_fill_primary="#000000",
-            background_fill_primary_dark="#000000",
-            background_fill_secondary="#000000",
-            background_fill_secondary_dark="#000000",
+                # Shadows - remove them for flat look
+                shadow_drop="none",
+                shadow_drop_lg="none",
+                shadow_inset="none",
+                shadow_spread="0px",
+                shadow_spread_dark="0px",
 
-            # Color accents
-            color_accent="#00ff00",
-            color_accent_soft="#003300",
-            color_accent_soft_dark="#003300",
-        )
+                # Background colors
+                background_fill_primary="#000000",
+                background_fill_primary_dark="#000000",
+                background_fill_secondary="#000000",
+                background_fill_secondary_dark="#000000",
+
+                # Color accents
+                color_accent=shades['full'],
+                color_accent_soft=shades['dim'],
+                color_accent_soft_dark=shades['dim'],
+            )
+
+    return MatrixTheme()
 
 # Additional CSS for elements theme doesn't cover
-MATRIX_CSS = """
-/* Force dark mode and remove any light backgrounds */
-:root {
+def generate_matrix_css(theme_color: str = "#00ff00") -> str:
+    """Generate CSS with the specified theme color using CSS variables."""
+    shades = generate_color_shades(theme_color)
+
+    return f"""
+/* CSS Custom Properties for Theme Color */
+:root {{
+    --theme-color: {shades['full']};
+    --theme-color-dark: {shades['dark']};
+    --theme-color-medium: {shades['medium']};
+    --theme-color-dim: {shades['dim']};
+    --theme-color-faint: {shades['faint']};
+    --bg-color: #000000;
     color-scheme: dark !important;
-}
+}}
+
+/* OpenDyslexic Font - Self-Hosted for Offline Use */
+@font-face {{
+    font-family: 'OpenDyslexic';
+    src: url('/gradio_api/file=assets/fonts/OpenDyslexic-Regular.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}}
+
+@font-face {{
+    font-family: 'OpenDyslexic';
+    src: url('/gradio_api/file=assets/fonts/OpenDyslexic-Bold.woff') format('woff');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}}
+
+@font-face {{
+    font-family: 'OpenDyslexicMono';
+    src: url('/gradio_api/file=assets/fonts/OpenDyslexicMono-Regular.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}}
+
+/* Apply dyslexia-friendly font globally */
+* {{
+    font-family: 'OpenDyslexic', sans-serif !important;
+}}
+
+code, pre, .mono, .gr-code, textarea {{
+    font-family: 'OpenDyslexicMono', monospace !important;
+}}
 
 /* Remove Gradio footer */
-footer {
+footer {{
     display: none !important;
-}
+}}
 
 /* Scrollbars */
-::-webkit-scrollbar {
-    background: #000000;
+::-webkit-scrollbar {{
+    background: var(--bg-color);
     width: 8px;
-}
-::-webkit-scrollbar-thumb {
-    background: #00ff00;
+}}
+::-webkit-scrollbar-thumb {{
+    background: var(--theme-color);
     border-radius: 4px;
-}
-::-webkit-scrollbar-track {
-    background: #001a00;
-}
+}}
+::-webkit-scrollbar-track {{
+    background: var(--theme-color-faint);
+}}
 
 /* Tab styling */
-.tab-nav button {
-    background: #000000 !important;
-    color: #00ff00 !important;
-    border: 1px solid #00ff00 !important;
-}
-.tab-nav button.selected {
-    background: #003300 !important;
-}
+.tab-nav button {{
+    background: var(--bg-color) !important;
+    color: var(--theme-color) !important;
+    border: 1px solid var(--theme-color) !important;
+}}
+.tab-nav button.selected {{
+    background: var(--theme-color-dim) !important;
+}}
 
 /* Tab underline - remove orange */
 .tab-nav button.selected::after,
 button.tab-nav-button.selected::after,
 .tab-nav button::after,
-button.tab-nav-button::after {
-    background: #00ff00 !important;
-    background-color: #00ff00 !important;
-    border-bottom-color: #00ff00 !important;
-}
-.tabs .tabitem {
-    border-color: #00ff00 !important;
-}
+button.tab-nav-button::after {{
+    background: var(--theme-color) !important;
+    background-color: var(--theme-color) !important;
+    border-bottom-color: var(--theme-color) !important;
+}}
+.tabs .tabitem {{
+    border-color: var(--theme-color) !important;
+}}
 /* More aggressive tab underline override */
 [role="tablist"] button[aria-selected="true"]::after,
 [role="tablist"] button.selected::after,
 .tab-nav .selected::after,
 .svelte-1kcgrqr::after,
-button[role="tab"][aria-selected="true"]::after {
-    background: #00ff00 !important;
-    background-color: #00ff00 !important;
-}
+button[role="tab"][aria-selected="true"]::after {{
+    background: var(--theme-color) !important;
+    background-color: var(--theme-color) !important;
+}}
 /* Target any orange color directly */
 [style*="rgb(249, 115, 22)"],
 [style*="#f97316"],
-[style*="orange"] {
-    background: #00ff00 !important;
-    background-color: #00ff00 !important;
-    border-color: #00ff00 !important;
-}
+[style*="orange"] {{
+    background: var(--theme-color) !important;
+    background-color: var(--theme-color) !important;
+    border-color: var(--theme-color) !important;
+}}
 
-/* Primary buttons - force green styling */
+/* Primary buttons - force theme styling */
 button.primary,
 button.lg.primary,
 button[variant="primary"],
 .primary-btn,
-.gr-button-primary {
-    background: #003300 !important;
-    background-color: #003300 !important;
-    color: #00ff00 !important;
-    border: 1px solid #00ff00 !important;
-}
+.gr-button-primary {{
+    background: var(--theme-color-dim) !important;
+    background-color: var(--theme-color-dim) !important;
+    color: var(--theme-color) !important;
+    border: 1px solid var(--theme-color) !important;
+}}
 button.primary:hover,
-button.lg.primary:hover {
-    background: #004400 !important;
-    background-color: #004400 !important;
-}
+button.lg.primary:hover {{
+    background: var(--theme-color-dark) !important;
+    background-color: var(--theme-color-dark) !important;
+}}
 
-/* Slider track - green instead of orange */
-input[type="range"] {
-    accent-color: #00ff00 !important;
-}
-input[type="range"]::-webkit-slider-runnable-track {
-    background: linear-gradient(to right, #00ff00 0%, #00ff00 var(--value-percent, 50%), #003300 var(--value-percent, 50%), #003300 100%) !important;
-}
-input[type="range"]::-moz-range-track {
-    background: #003300 !important;
-}
-input[type="range"]::-moz-range-progress {
-    background: #00ff00 !important;
-}
+/* Slider track */
+input[type="range"] {{
+    accent-color: var(--theme-color) !important;
+}}
+input[type="range"]::-webkit-slider-runnable-track {{
+    background: linear-gradient(to right, var(--theme-color) 0%, var(--theme-color) var(--value-percent, 50%), var(--theme-color-dim) var(--value-percent, 50%), var(--theme-color-dim) 100%) !important;
+}}
+input[type="range"]::-moz-range-track {{
+    background: var(--theme-color-dim) !important;
+}}
+input[type="range"]::-moz-range-progress {{
+    background: var(--theme-color) !important;
+}}
 .range-slider,
-.slider {
-    --slider-color: #00ff00 !important;
-}
+.slider {{
+    --slider-color: var(--theme-color) !important;
+}}
 
-/* Radio buttons - green instead of orange */
-input[type="radio"] {
-    accent-color: #00ff00 !important;
-}
-input[type="radio"]:checked {
-    background-color: #00ff00 !important;
-    border-color: #00ff00 !important;
-}
-.gr-radio-row input[type="radio"]:checked + label::before {
-    background-color: #00ff00 !important;
-}
+/* Radio buttons */
+input[type="radio"] {{
+    accent-color: var(--theme-color) !important;
+}}
+input[type="radio"]:checked {{
+    background-color: var(--theme-color) !important;
+    border-color: var(--theme-color) !important;
+}}
+.gr-radio-row input[type="radio"]:checked + label::before {{
+    background-color: var(--theme-color) !important;
+}}
 
-/* Ensure all text is green */
-* {
-    color: #00ff00;
-}
+/* Ensure all text uses theme color */
+* {{
+    color: var(--theme-color);
+}}
 
 /* SVG icons */
-svg path, svg circle, svg rect {
-    stroke: #00ff00 !important;
-}
+svg path, svg circle, svg rect {{
+    stroke: var(--theme-color) !important;
+}}
 
 /* Force all gray backgrounds to pure black */
 .block, .form, .panel, .container, .wrap, .wrap-inner,
@@ -300,38 +398,38 @@ svg path, svg circle, svg rect {
 [class*="block"], [class*="panel"], [class*="container"],
 .svelte-1ed2p3z, .svelte-1kcgrqr, .svelte-1guhx2a,
 div[data-testid], main, section, article, aside,
-.input-container, .output-container, .component-wrapper {
-    background: #000000 !important;
-    background-color: #000000 !important;
-}
+.input-container, .output-container, .component-wrapper {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+}}
 
 /* Table backgrounds */
 table, thead, tbody, tr, th, td,
-.table-wrap, .dataframe, .gr-dataframe {
-    background: #000000 !important;
-    background-color: #000000 !important;
-}
+.table-wrap, .dataframe, .gr-dataframe {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+}}
 table tr:nth-child(even),
-table tr:nth-child(odd) {
-    background: #000000 !important;
-}
-table tr:hover {
-    background: #001a00 !important;
-}
+table tr:nth-child(odd) {{
+    background: var(--bg-color) !important;
+}}
+table tr:hover {{
+    background: var(--theme-color-faint) !important;
+}}
 
 /* Input/textarea backgrounds */
 input, textarea, select, .gr-input, .gr-textarea,
-.textbox, .gr-textbox, [data-testid="textbox"] {
-    background: #000000 !important;
-    background-color: #000000 !important;
-}
+.textbox, .gr-textbox, [data-testid="textbox"] {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+}}
 
 /* Dropdown/select backgrounds */
 .dropdown, .gr-dropdown, select, option,
-[data-testid="dropdown"], .choices, .choices__inner {
-    background: #000000 !important;
-    background-color: #000000 !important;
-}
+[data-testid="dropdown"], .choices, .choices__inner {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+}}
 
 /* Any remaining gray shades */
 [style*="rgb(31, 41, 55)"],
@@ -343,59 +441,440 @@ input, textarea, select, .gr-input, .gr-textarea,
 [style*="#111827"],
 [style*="#374151"],
 [style*="#4b5563"],
-[style*="#6b7280"] {
-    background: #000000 !important;
-    background-color: #000000 !important;
-}
+[style*="#6b7280"] {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+}}
 
 /* Body and html */
-html, body {
-    background: #000000 !important;
-    background-color: #000000 !important;
-}
+html, body {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+}}
 
 /* Additional targeted selectors for remaining gray elements */
 .gr-box, .gr-panel, .gr-form, .gr-input, .gr-button,
 .secondary, .gr-secondary, .svelte-1ipelgc, .svelte-1ed2p3z,
 .border, .rounded, .shadow, .bg-gray-50, .bg-gray-100,
 .bg-gray-200, .bg-gray-700, .bg-gray-800, .bg-gray-900,
-div[class*="svelte-"], span[class*="svelte-"] {
-    background-color: #000000 !important;
-}
+div[class*="svelte-"], span[class*="svelte-"] {{
+    background-color: var(--bg-color) !important;
+}}
 
-/* Borders should be green */
+/* Borders should use theme color */
 .gr-box, .gr-panel, .gr-form, .gr-input, .gr-button,
-.border, input, textarea, select, button, table, th, td {
-    border-color: #00ff00 !important;
-}
+.border, input, textarea, select, button, table, th, td {{
+    border-color: var(--theme-color) !important;
+}}
 
 /* Remove any box shadows that might appear gray */
-.gr-box, .gr-panel, .shadow, [class*="shadow"] {
+.gr-box, .gr-panel, .shadow, [class*="shadow"] {{
     box-shadow: none !important;
-}
+}}
+
+/* JSON viewer styling */
+.json-holder, .json-container, [data-testid="json"],
+.gr-json, .json, pre, code,
+[class*="json"], [class*="Json"] {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+    color: var(--theme-color) !important;
+    border-color: var(--theme-color) !important;
+}}
+.json-holder pre, .json-container pre,
+[data-testid="json"] pre {{
+    background: var(--bg-color) !important;
+    color: var(--theme-color) !important;
+}}
+/* JSON syntax highlighting */
+.json-holder .string, .json-container .string {{ color: var(--theme-color-medium) !important; }}
+.json-holder .number, .json-container .number {{ color: var(--theme-color) !important; }}
+.json-holder .boolean, .json-container .boolean {{ color: var(--theme-color) !important; }}
+.json-holder .null, .json-container .null {{ color: var(--theme-color-dark) !important; }}
+.json-holder .key, .json-container .key {{ color: var(--theme-color) !important; }}
+
+/* Checkbox styling - more specific */
+input[type="checkbox"] {{
+    accent-color: var(--theme-color) !important;
+    background: var(--bg-color) !important;
+    border-color: var(--theme-color) !important;
+}}
+input[type="checkbox"]:checked {{
+    background-color: var(--theme-color) !important;
+}}
+.gr-checkbox, .checkbox-container, [data-testid="checkbox"],
+label[data-testid], .gr-check-radio {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+}}
+/* Checkbox label and wrapper */
+.gr-checkbox-container, .checkbox-label,
+[class*="checkbox"], [class*="Checkbox"] {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+    color: var(--theme-color) !important;
+}}
+
+/* Dropdown menu items */
+.dropdown-menu, .dropdown-content, .dropdown-item,
+.choices__list, .choices__item, .choices__list--dropdown,
+ul[role="listbox"], li[role="option"],
+[class*="dropdown"], [class*="Dropdown"],
+.svelte-select, .listbox, .list-box {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+    color: var(--theme-color) !important;
+    border-color: var(--theme-color) !important;
+}}
+.choices__list--dropdown .choices__item--selectable.is-highlighted,
+li[role="option"]:hover, .dropdown-item:hover {{
+    background: var(--theme-color-dim) !important;
+    background-color: var(--theme-color-dim) !important;
+}}
+
+/* Label backgrounds */
+label, .label, .gr-label, [class*="label"],
+.block-label, .label-wrap, span.label {{
+    background: transparent !important;
+    background-color: transparent !important;
+    color: var(--theme-color) !important;
+}}
+
+/* Number input styling */
+input[type="number"], .gr-number,
+[data-testid="number-input"] {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+    color: var(--theme-color) !important;
+    border-color: var(--theme-color) !important;
+}}
+
+/* Slider label and container */
+.slider-container, .range-container,
+[data-testid="slider"], .gr-slider {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+}}
+
+/* Password input */
+input[type="password"] {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+    color: var(--theme-color) !important;
+    border-color: var(--theme-color) !important;
+}}
+
+/* Prose/markdown containers */
+.prose, .markdown, .md, [class*="prose"],
+[class*="markdown"], [class*="Markdown"] {{
+    background: transparent !important;
+    background-color: transparent !important;
+    color: var(--theme-color) !important;
+}}
+.prose *, .markdown *, .md * {{
+    color: var(--theme-color) !important;
+}}
+
+/* Catch-all for white backgrounds */
+[style*="background: white"],
+[style*="background-color: white"],
+[style*="background: #fff"],
+[style*="background-color: #fff"],
+[style*="background: rgb(255"],
+[style*="background-color: rgb(255"],
+[style*="background: #ffffff"],
+[style*="background-color: #ffffff"] {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+}}
+
+/* Nested tabs in Consolidated view */
+.tabs .tabs, .tabitem .tabs,
+.tab-content, .tabitem-content {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+}}
+
+/* Form elements wrapper */
+.form-group, .input-group, .field-group,
+.gr-form-group, fieldset, legend {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+    border-color: var(--theme-color) !important;
+}}
+
+/* Accordion/collapsible elements */
+.accordion, .collapsible, details, summary,
+[class*="accordion"], [class*="Accordion"] {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+    color: var(--theme-color) !important;
+    border-color: var(--theme-color) !important;
+}}
+
+/* Status/info boxes */
+.status, .info, .alert, .notice, .message,
+[class*="status"], [class*="info"], [class*="alert"] {{
+    background: var(--bg-color) !important;
+    background-color: var(--bg-color) !important;
+    color: var(--theme-color) !important;
+    border-color: var(--theme-color) !important;
+}}
+
+/* Ensure dividers use theme color */
+hr, .divider, [class*="divider"] {{
+    border-color: var(--theme-color) !important;
+    background: var(--theme-color) !important;
+}}
+
+/* Dataframe and component labels - very specific */
+.gr-dataframe label, .dataframe label,
+[data-testid="dataframe"] label,
+.gr-dataframe span, .dataframe span,
+[data-testid="dataframe"] span,
+.table-wrap label, .table-wrap span,
+.gr-dataframe .label, .dataframe .label,
+.block .label, .block label, .block span.svelte-1gfkn6j,
+span.svelte-1gfkn6j, label.svelte-1gfkn6j,
+.svelte-1gfkn6j, .svelte-1f354aw, .svelte-s1r2yt,
+span[data-testid], label[data-testid],
+.label-wrap span, .label-wrap label,
+.gr-block-label, .gr-box-label,
+h2, h3, h4, h5, h6 {{
+    color: var(--theme-color) !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}}
+
+/* Target all span and label elements more aggressively */
+span, label {{
+    color: var(--theme-color) !important;
+}}
+
+/* Nuclear option - catch ANY white text */
+[style*="color: white"],
+[style*="color: #fff"],
+[style*="color: rgb(255"],
+[style*="color:#fff"],
+[style*="color:#ffffff"],
+[style*="color: #ffffff"] {{
+    color: var(--theme-color) !important;
+}}
+
+/* Gradio 4.x specific label selectors */
+.block > label, .block > span,
+.wrap > label, .wrap > span,
+.container > label, .container > span,
+div > label, div > span,
+.gr-block > label, .gr-block > span,
+.gr-group > label, .gr-group > span,
+[class*="block"] > label, [class*="block"] > span,
+[class*="wrap"] > label, [class*="wrap"] > span {{
+    color: var(--theme-color) !important;
+}}
+
+/* Even more specific - target by structure */
+.gradio-container label,
+.gradio-container span,
+.gradio-container p,
+.gradio-container div {{
+    color: var(--theme-color) !important;
+}}
+
+/* Override any text color */
+[class*="svelte-"] {{
+    color: var(--theme-color) !important;
+}}
+
+/* Plotly chart labels if any remain */
+.plotly .gtitle, .plotly .xtitle, .plotly .ytitle,
+.plotly text, .js-plotly-plot text {{
+    fill: var(--theme-color) !important;
+    color: var(--theme-color) !important;
+}}
+
+/* ==========================================================================
+   COMPACT VERTICAL LAYOUT - Maximum Space Efficiency
+   ========================================================================== */
+
+/* Global line height reduction */
+* {{
+    line-height: 1.3 !important;
+}}
+
+/* Main container - minimal padding */
+.gradio-container {{
+    padding: 4px 8px !important;
+}}
+
+/* Blocks and panels - tight vertical spacing */
+.gr-block, .block, .gr-box, .gr-panel, .gr-form,
+.gr-group, .group, .wrap, .contain {{
+    padding: 4px 6px !important;
+    margin: 2px 0 !important;
+}}
+
+/* Row and column gaps - minimal */
+.gr-row, .row, .gap, .flex {{
+    gap: 6px !important;
+    margin: 2px 0 !important;
+}}
+.gr-column, .column {{
+    gap: 4px !important;
+}}
+
+/* Headings - compact with clear hierarchy */
+h1, .prose h1 {{
+    margin: 4px 0 2px 0 !important;
+    padding: 0 !important;
+    font-size: 1.4em !important;
+}}
+h2, .prose h2 {{
+    margin: 6px 0 2px 0 !important;
+    padding: 0 !important;
+    font-size: 1.2em !important;
+}}
+h3, .prose h3 {{
+    margin: 4px 0 2px 0 !important;
+    padding: 0 !important;
+    font-size: 1.1em !important;
+}}
+h4, h5, h6, .prose h4, .prose h5, .prose h6 {{
+    margin: 2px 0 !important;
+    padding: 0 !important;
+}}
+
+/* Paragraphs and text blocks */
+p, .prose p, .markdown p {{
+    margin: 2px 0 !important;
+    padding: 0 !important;
+}}
+
+/* Tab navigation - compact */
+.tab-nav {{
+    margin-bottom: 4px !important;
+    gap: 2px !important;
+}}
+
+/* Tab content area */
+.tabitem, .tab-content, .tabitem > div {{
+    padding: 6px !important;
+    margin: 0 !important;
+}}
+
+/* Form elements - tight */
+textarea {{
+    min-height: unset !important;
+}}
+
+/* Number inputs */
+input[type="number"] {{
+    padding: 4px 6px !important;
+}}
+
+/* Buttons - compact */
+button.lg {{
+    padding: 6px 12px !important;
+}}
+
+/* Dataframes and tables - compact */
+.dataframe, table, .gr-dataframe {{
+    margin: 4px 0 !important;
+}}
+.dataframe td, .dataframe th, td, th {{
+    padding: 3px 6px !important;
+    line-height: 1.2 !important;
+}}
+.dataframe thead, thead {{
+    line-height: 1.2 !important;
+}}
+
+/* Checkbox and radio groups */
+.gr-checkbox, .gr-radio, .checkbox-group, .radio-group {{
+    margin: 2px 0 !important;
+    padding: 2px !important;
+}}
+.gr-checkbox-container, .checkbox-container {{
+    gap: 4px !important;
+}}
+
+/* Dropdown menus */
+.dropdown, .gr-dropdown {{
+    margin: 2px 0 !important;
+}}
+
+/* Accordion/collapsible - tight */
+.accordion, details, summary {{
+    margin: 2px 0 !important;
+    padding: 4px !important;
+}}
+
+/* Status and info boxes */
+.status, .info, .alert, .message {{
+    padding: 4px 8px !important;
+    margin: 2px 0 !important;
+}}
+
+/* Dividers - thin */
+hr, .divider {{
+    margin: 6px 0 !important;
+}}
+
+/* JSON displays */
+.json-holder, .json-container, pre {{
+    padding: 4px !important;
+    margin: 2px 0 !important;
+    line-height: 1.2 !important;
+}}
+
+/* Plotly charts - reduce wrapper padding */
+.js-plotly-plot, .plotly-graph-div {{
+    margin: 4px 0 !important;
+}}
+
+/* Remove extra spacing from nested containers */
+.block > .wrap, .block > .container,
+.gr-block > .wrap, .gr-block > .container {{
+    padding: 2px !important;
+    margin: 0 !important;
+}}
+
+/* Svelte component wrappers - reduce gaps */
+[class*="svelte-"] {{
+    --block-padding: 4px !important;
+    --block-gap: 4px !important;
+    --layout-gap: 4px !important;
+}}
 """
 
 # =============================================================================
 # PLOTLY MATRIX THEME HELPER
 # =============================================================================
 
-def apply_matrix_theme(fig):
+def apply_matrix_theme(fig, theme_color: str = None):
     """Apply matrix theme to a Plotly figure."""
+    from config import load_config
+    if theme_color is None:
+        config = load_config()
+        theme_color = config.get('theme_color', '#00ff00')
+
+    shades = generate_color_shades(theme_color)
+
     fig.update_layout(
         paper_bgcolor='#000000',
         plot_bgcolor='#000000',
-        font=dict(color='#00ff00', family='Courier New'),
-        title_font=dict(color='#00ff00'),
-        legend=dict(font=dict(color='#00ff00')),
+        font=dict(color=shades['full'], family='OpenDyslexic, Courier New'),
+        title_font=dict(color=shades['full']),
+        legend=dict(font=dict(color=shades['full'])),
         xaxis=dict(
-            gridcolor='#003300',
-            linecolor='#00ff00',
-            tickfont=dict(color='#00ff00')
+            gridcolor=shades['dim'],
+            linecolor=shades['full'],
+            tickfont=dict(color=shades['full'])
         ),
         yaxis=dict(
-            gridcolor='#003300',
-            linecolor='#00ff00',
-            tickfont=dict(color='#00ff00')
+            gridcolor=shades['dim'],
+            linecolor=shades['full'],
+            tickfont=dict(color=shades['full'])
         )
     )
     return fig
@@ -572,12 +1051,8 @@ def create_dashboard_tab():
             remaining_box = gr.Number(label="Remaining", interactive=False)
             errors_box = gr.Number(label="Errors", interactive=False)
 
-        progress_bar = gr.Slider(
-            label="Extraction Progress",
-            minimum=0,
-            maximum=100,
-            interactive=False
-        )
+        gr.Markdown("### Extraction Progress")
+        progress_bar = gr.Markdown("0% complete")
 
         gr.Markdown("### Quick Stats")
         with gr.Row():
@@ -634,12 +1109,18 @@ def create_dashboard_tab():
                     tone
                 ])
 
+            # Create visual progress bar
+            pct = status['progress']
+            filled = int(pct / 2)  # 50 chars total
+            empty = 50 - filled
+            progress_text = f"**{pct:.1f}%** `[{'█' * filled}{'░' * empty}]` ({status['extracted']:,} / {status['total']:,})"
+
             return (
                 status['total'],
                 status['extracted'],
                 status['remaining'],
                 status['errors'],
-                status['progress'],
+                progress_text,
                 len(ideas),
                 len(problems),
                 len(tools),
@@ -666,30 +1147,59 @@ def create_dashboard_tab():
 # EXTRACTION CONTROL TAB
 # =============================================================================
 
+def format_time(seconds: float | None) -> str:
+    """Format seconds as human-readable time."""
+    if seconds is None:
+        return "—"
+    if seconds < 60:
+        return f"{int(seconds)}s"
+    elif seconds < 3600:
+        mins = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{mins}m {secs}s"
+    else:
+        hours = int(seconds // 3600)
+        mins = int((seconds % 3600) // 60)
+        return f"{hours}h {mins}m"
+
+
 def create_extraction_tab():
     """Create the extraction control tab."""
+    from config import load_config
+
+    def get_settings_display():
+        """Get current settings as formatted markdown."""
+        config = load_config()
+        return f"""**Model:** {config.get('model', 'unknown')}
+**Provider:** {config.get('api_provider', 'unknown')}
+**Rate limit:** {config.get('requests_per_minute', 60)} req/min"""
+
     with gr.Tab("Extraction"):
         gr.Markdown("## Extraction Control")
 
         with gr.Row():
             with gr.Column():
-                gr.Markdown("### Settings")
-                from config import load_config
-                config = load_config()
-                gr.Markdown(f"**Model:** {config.get('model', 'unknown')}")
-                gr.Markdown(f"**Provider:** {config.get('api_provider', 'unknown')}")
-                gr.Markdown(f"**Rate limit:** {config.get('requests_per_minute', 20)} req/min")
+                gr.Markdown("### Current Settings")
+                settings_display = gr.Markdown(get_settings_display())
+                refresh_settings_btn = gr.Button("↻ Refresh", size="sm", variant="secondary")
 
             with gr.Column():
                 gr.Markdown("### Run Extraction")
-                count_slider = gr.Slider(
+                count_input = gr.Number(
                     label="Number to extract",
-                    minimum=1,
-                    maximum=100,
                     value=10,
+                    minimum=1,
                     step=1
                 )
-                extract_btn = gr.Button("Start Extraction", variant="primary")
+                with gr.Row():
+                    extract_btn = gr.Button("Start Extraction", variant="primary")
+                    extract_all_btn = gr.Button("Extract All Remaining", variant="secondary")
+
+        # Refresh settings display when button clicked
+        refresh_settings_btn.click(
+            fn=get_settings_display,
+            outputs=[settings_display]
+        )
 
         output_log = gr.Textbox(
             label="Extraction Log",
@@ -703,17 +1213,106 @@ def create_extraction_tab():
             conv_id_input = gr.Textbox(label="Conversation ID", placeholder="Enter UUID...")
             extract_one_btn = gr.Button("Extract This")
 
-        def run_extraction(count):
+        def run_extraction_with_polling(count=None, extract_all=False):
+            """Run extraction with polling for status updates."""
+            import time as time_module
+
+            STATUS_FILE = Path("data/extraction_status.json")
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            if extract_all:
+                yield f"[{timestamp}] Starting extraction of ALL remaining conversations...\n\nThis may take a while. Please wait..."
+                cmd = ["python3", "runner.py", "--all"]
+            else:
+                yield f"[{timestamp}] Starting extraction of {int(count)} conversations...\n\nPlease wait..."
+                cmd = ["python3", "runner.py", "--count", str(int(count))]
+
+            # Clear old status file
+            if STATUS_FILE.exists():
+                STATUS_FILE.unlink()
+
             try:
-                result = subprocess.run(
-                    ["python3", "runner.py", "--count", str(int(count))],
-                    capture_output=True,
-                    text=True,
-                    cwd=Path(__file__).parent
+                # Start process in background
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=Path(__file__).parent,
+                    text=True
                 )
-                return result.stdout + result.stderr
+
+                start_time = time_module.time()
+                last_message = ""
+
+                # Poll for status updates
+                while process.poll() is None:  # Process still running
+                    if STATUS_FILE.exists():
+                        try:
+                            with open(STATUS_FILE, 'r') as f:
+                                status = json.load(f)
+                            message = status.get('message', '')
+                            progress = status.get('progress', 0)
+                            current = status.get('current', 0)
+                            total = status.get('total', 0)
+                            elapsed = status.get('elapsed_seconds', 0)
+                            eta = status.get('eta_seconds')
+
+                            if message != last_message or True:  # Always update for time
+                                last_message = message
+                                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                elapsed_str = format_time(elapsed)
+                                eta_str = format_time(eta) if eta else "calculating..."
+
+                                progress_bar = f"[{'█' * int(progress/5)}{'░' * (20-int(progress/5))}] {progress:.0f}%"
+                                yield f"[{ts}] [{current}/{total}] {message}\nElapsed: {elapsed_str} | ETA: {eta_str}\n{progress_bar}"
+
+                            if status.get('complete') or status.get('error'):
+                                break
+                        except (json.JSONDecodeError, IOError):
+                            pass  # Status file being written
+
+                    # Timeout after 2 hours for large extractions
+                    if time_module.time() - start_time > 7200:
+                        process.kill()
+                        yield f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Error: Process timed out after 2 hours."
+                        return
+
+                    time_module.sleep(1)  # Poll every 1 second
+
+                # Get final output
+                stdout, stderr = process.communicate(timeout=10)
+                end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                # Check final status
+                if STATUS_FILE.exists():
+                    try:
+                        with open(STATUS_FILE, 'r') as f:
+                            status = json.load(f)
+                        elapsed = status.get('elapsed_seconds', 0)
+                        elapsed_str = format_time(elapsed)
+
+                        if status.get('error'):
+                            yield f"[{end_timestamp}] {status.get('message', 'Unknown error')}"
+                            return
+                        if status.get('complete'):
+                            yield f"[{end_timestamp}] {status.get('message', 'Extraction complete.')}\nTotal time: {elapsed_str}"
+                            return
+                    except (json.JSONDecodeError, IOError):
+                        pass
+
+                if process.returncode == 0:
+                    yield f"[{end_timestamp}] Extraction complete."
+                else:
+                    yield f"[{end_timestamp}] Extraction finished with errors.\n\n{stderr}"
+
             except Exception as e:
-                return f"Error: {e}"
+                yield f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Error: {e}"
+
+        def run_extraction(count):
+            yield from run_extraction_with_polling(count=count, extract_all=False)
+
+        def run_all_extraction():
+            yield from run_extraction_with_polling(extract_all=True)
 
         def run_single_extraction(conv_id):
             if not conv_id.strip():
@@ -729,7 +1328,8 @@ def create_extraction_tab():
             except Exception as e:
                 return f"Error: {e}"
 
-        extract_btn.click(fn=run_extraction, inputs=[count_slider], outputs=[output_log])
+        extract_btn.click(fn=run_extraction, inputs=[count_input], outputs=[output_log])
+        extract_all_btn.click(fn=run_all_extraction, inputs=[], outputs=[output_log])
         extract_one_btn.click(fn=run_single_extraction, inputs=[conv_id_input], outputs=[output_log])
 
 
@@ -739,12 +1339,25 @@ def create_extraction_tab():
 
 def create_browser_tab():
     """Create the conversation browser tab."""
+    PAGE_SIZE = 100
+
     with gr.Tab("Conversations"):
         gr.Markdown("## Conversation Browser")
 
         with gr.Row():
             search_box = gr.Textbox(label="Search titles", placeholder="Type to search...")
             filter_extracted = gr.Checkbox(label="Only show extracted", value=False)
+            sort_dropdown = gr.Dropdown(
+                choices=["Oldest first", "Newest first", "Most turns", "Fewest turns"],
+                value="Oldest first",
+                label="Sort by"
+            )
+
+        with gr.Row():
+            load_btn = gr.Button("Load Conversations", variant="primary")
+            prev_btn = gr.Button("< Previous")
+            page_info = gr.Markdown("Page 1 of 1 (0 conversations)")
+            next_btn = gr.Button("Next >")
 
         conversations_table = gr.Dataframe(
             headers=["Title", "Date", "Messages", "Extracted", "ID"],
@@ -752,7 +1365,10 @@ def create_browser_tab():
             interactive=False
         )
 
-        load_btn = gr.Button("Load Conversations")
+        # State for pagination
+        current_page = gr.State(1)
+        total_pages = gr.State(1)
+        filtered_data = gr.State([])
 
         gr.Markdown("### Conversation Detail")
         conv_id_display = gr.Textbox(label="Selected ID", interactive=False)
@@ -764,7 +1380,8 @@ def create_browser_tab():
             with gr.Tab("Extraction"):
                 extraction_display = gr.JSON(label="Extraction Data")
 
-        def load_conversations(search_term, only_extracted):
+        def load_conversations(search_term, only_extracted, sort_by):
+            """Load and filter all conversations, return first page."""
             manifest = load_manifest()
             rows = []
 
@@ -790,13 +1407,54 @@ def create_browser_tab():
                     conv_id
                 ])
 
-            return rows[:100]  # Limit to 100 for performance
+            # Sort based on selection
+            if sort_by == "Oldest first":
+                rows.sort(key=lambda x: x[1])
+            elif sort_by == "Newest first":
+                rows.sort(key=lambda x: x[1], reverse=True)
+            elif sort_by == "Most turns":
+                rows.sort(key=lambda x: x[2], reverse=True)
+            elif sort_by == "Fewest turns":
+                rows.sort(key=lambda x: x[2])
+
+            total = len(rows)
+            pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+            page_rows = rows[:PAGE_SIZE]
+
+            return (
+                page_rows,
+                1,  # current_page
+                pages,  # total_pages
+                rows,  # filtered_data (all rows)
+                f"Page 1 of {pages} ({total:,} conversations)"
+            )
+
+        def go_to_page(page, pages, all_rows):
+            """Navigate to a specific page."""
+            page = max(1, min(page, pages))
+            start = (page - 1) * PAGE_SIZE
+            end = start + PAGE_SIZE
+            page_rows = all_rows[start:end]
+            total = len(all_rows)
+            return (
+                page_rows,
+                page,
+                f"Page {page} of {pages} ({total:,} conversations)"
+            )
+
+        def prev_page(page, pages, all_rows):
+            """Go to previous page."""
+            return go_to_page(page - 1, pages, all_rows)
+
+        def next_page(page, pages, all_rows):
+            """Go to next page."""
+            return go_to_page(page + 1, pages, all_rows)
 
         def view_conversation(evt: gr.SelectData, data):
             if evt.index[0] is None:
                 return "", "Select a conversation", None
 
-            row = data[evt.index[0]]
+            row = data.iloc[evt.index[0]].tolist()
             conv_id = row[4]
 
             # Load conversation
@@ -820,8 +1478,20 @@ def create_browser_tab():
 
         load_btn.click(
             fn=load_conversations,
-            inputs=[search_box, filter_extracted],
-            outputs=[conversations_table]
+            inputs=[search_box, filter_extracted, sort_dropdown],
+            outputs=[conversations_table, current_page, total_pages, filtered_data, page_info]
+        )
+
+        prev_btn.click(
+            fn=prev_page,
+            inputs=[current_page, total_pages, filtered_data],
+            outputs=[conversations_table, current_page, page_info]
+        )
+
+        next_btn.click(
+            fn=next_page,
+            inputs=[current_page, total_pages, filtered_data],
+            outputs=[conversations_table, current_page, page_info]
         )
 
         conversations_table.select(
@@ -1070,14 +1740,1260 @@ def create_emotions_tab():
 
 
 # =============================================================================
+# CONSOLIDATED TAB
+# =============================================================================
+
+def load_consolidated_data() -> dict | None:
+    """Load consolidated data from disk."""
+    if not CONSOLIDATED_FILE.exists():
+        return None
+    with open(CONSOLIDATED_FILE, 'r') as f:
+        return json.load(f)
+
+
+def create_consolidated_tab():
+    """Create the consolidated insights tab."""
+    with gr.Tab("Consolidated"):
+        gr.Markdown("## Consolidated Insights")
+        gr.Markdown("*Deduplicated ideas and problems across all conversations*")
+
+        # Summary stats
+        with gr.Row():
+            total_ideas = gr.Number(label="Unique Ideas", interactive=False)
+            total_problems = gr.Number(label="Unique Problems", interactive=False)
+            total_workflows = gr.Number(label="Unique Workflows", interactive=False)
+            source_count = gr.Number(label="Source Extractions", interactive=False)
+
+        # Tabs for different cluster types
+        with gr.Tabs():
+            with gr.Tab("Idea Clusters"):
+                ideas_table = gr.Dataframe(
+                    headers=["Name", "Occurrences", "Date Range", "Description"],
+                    label="Consolidated Ideas",
+                    interactive=False
+                )
+
+                gr.Markdown("### Selected Idea Details")
+                idea_detail = gr.JSON(label="Full Details")
+
+            with gr.Tab("Problem Clusters"):
+                problems_table = gr.Dataframe(
+                    headers=["Name", "Occurrences", "Date Range", "Description"],
+                    label="Consolidated Problems",
+                    interactive=False
+                )
+
+                gr.Markdown("### Selected Problem Details")
+                problem_detail = gr.JSON(label="Full Details")
+
+            with gr.Tab("Tools Frequency"):
+                tools_chart = gr.Plot(label="Tool Frequency")
+                tools_freq_table = gr.Dataframe(
+                    headers=["Tool", "Mentions"],
+                    label="All Tools",
+                    interactive=False
+                )
+
+            with gr.Tab("Emotional Timeline"):
+                timeline_chart = gr.Plot(label="Emotional Timeline")
+                timeline_table = gr.Dataframe(
+                    headers=["Date", "Title", "Tone", "Notes"],
+                    label="",
+                    interactive=False
+                )
+
+        with gr.Row():
+            refresh_btn = gr.Button("Refresh Consolidated Data", variant="primary")
+            run_consolidation_btn = gr.Button("Run Consolidation")
+
+        consolidation_log = gr.Textbox(
+            label="Consolidation Log",
+            value="Click 'Run Consolidation' to start...",
+            lines=8,
+            interactive=False
+        )
+
+        def load_consolidated():
+            data = load_consolidated_data()
+            if not data:
+                empty_msg = "No consolidated data found. Run consolidation first."
+                return (
+                    0, 0, 0, 0,
+                    [[empty_msg, "", "", ""]],
+                    None,
+                    [[empty_msg, "", "", ""]],
+                    None,
+                    go.Figure(),
+                    [],
+                    go.Figure(),
+                    []
+                )
+
+            # Stats
+            n_ideas = len(data.get('idea_clusters', []))
+            n_problems = len(data.get('problem_clusters', []))
+            n_workflows = len(data.get('workflow_clusters', []))
+            n_sources = data.get('metadata', {}).get('source_extractions', 0)
+
+            # Sort idea clusters by occurrences (highest first)
+            sorted_ideas = sorted(
+                data.get('idea_clusters', []),
+                key=lambda x: x.get('occurrences', 1),
+                reverse=True
+            )
+
+            # Ideas table
+            ideas_rows = []
+            for cluster in sorted_ideas:
+                date_range = cluster.get('date_range', ['', ''])
+                if isinstance(date_range, list) and len(date_range) >= 2:
+                    date_str = f"{date_range[0]} - {date_range[1]}"
+                else:
+                    date_str = str(date_range)
+                ideas_rows.append([
+                    cluster.get('name', 'Unknown')[:50],
+                    cluster.get('occurrences', 1),
+                    date_str,
+                    cluster.get('description', '')[:100]
+                ])
+
+            # Sort problem clusters by occurrences (highest first)
+            sorted_problems = sorted(
+                data.get('problem_clusters', []),
+                key=lambda x: x.get('occurrences', 1),
+                reverse=True
+            )
+
+            # Problems table
+            problems_rows = []
+            for cluster in sorted_problems:
+                date_range = cluster.get('date_range', ['', ''])
+                if isinstance(date_range, list) and len(date_range) >= 2:
+                    date_str = f"{date_range[0]} - {date_range[1]}"
+                else:
+                    date_str = str(date_range)
+                problems_rows.append([
+                    cluster.get('name', 'Unknown')[:50],
+                    cluster.get('occurrences', 1),
+                    date_str,
+                    cluster.get('description', '')[:100]
+                ])
+
+            # Tools chart
+            tool_freq = data.get('tool_frequency', {})
+            sorted_tools = sorted(tool_freq.items(), key=lambda x: x[1], reverse=True)
+            top_20 = sorted_tools[:20]
+
+            if top_20:
+                tools_fig = px.bar(
+                    x=[t[0] for t in top_20],
+                    y=[t[1] for t in top_20],
+                    title="Top 20 Tools",
+                    labels={'x': 'Tool', 'y': 'Mentions'}
+                )
+                tools_fig.update_traces(marker_color='#00ff00')
+                tools_fig.update_xaxes(tickangle=45)
+                apply_matrix_theme(tools_fig)
+            else:
+                tools_fig = go.Figure()
+                apply_matrix_theme(tools_fig)
+
+            tools_rows = [[t[0], t[1]] for t in sorted_tools]
+
+            # Emotional timeline
+            timeline = data.get('emotional_timeline', [])
+            timeline_rows = []
+            for entry in timeline:
+                timeline_rows.append([
+                    entry.get('date', ''),
+                    entry.get('title', '')[:40],
+                    entry.get('tone', ''),
+                    entry.get('notes', '')[:60]
+                ])
+
+            # Timeline chart - tone over time
+            if timeline:
+                tone_mapping = {'excited': 2, 'curious': 1, 'neutral': 0, 'frustrated': -1, 'stuck': -2}
+                dates = [e.get('date', '') for e in timeline]
+                tone_values = [tone_mapping.get(e.get('tone', 'neutral'), 0) for e in timeline]
+
+                timeline_fig = go.Figure()
+                timeline_fig.add_trace(go.Scatter(
+                    x=dates,
+                    y=tone_values,
+                    mode='lines+markers',
+                    marker=dict(color='#00ff00', size=8),
+                    line=dict(color='#00ff00', width=2),
+                    hovertext=[e.get('title', '') for e in timeline]
+                ))
+                timeline_fig.update_layout(
+                    title="Emotional Timeline",
+                    yaxis=dict(
+                        ticktext=['stuck', 'frustrated', 'neutral', 'curious', 'excited'],
+                        tickvals=[-2, -1, 0, 1, 2]
+                    )
+                )
+                apply_matrix_theme(timeline_fig)
+            else:
+                timeline_fig = go.Figure()
+                apply_matrix_theme(timeline_fig)
+
+            return (
+                n_ideas, n_problems, n_workflows, n_sources,
+                ideas_rows,
+                sorted_ideas,  # Pass sorted data so row index matches
+                problems_rows,
+                sorted_problems,  # Pass sorted data so row index matches
+                tools_fig,
+                tools_rows,
+                timeline_fig,
+                timeline_rows
+            )
+
+        def run_consolidation():
+            from datetime import datetime
+            import subprocess
+            import time
+
+            STATUS_FILE = Path("data/consolidation_status.json")
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            yield f"[{timestamp}] Starting consolidation...\n\nThis may take several minutes. Please wait..."
+
+            # Clear old status file
+            if STATUS_FILE.exists():
+                STATUS_FILE.unlink()
+
+            try:
+                # Start process in background
+                process = subprocess.Popen(
+                    ["python3", "consolidate.py"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=Path(__file__).parent,
+                    text=True
+                )
+
+                start_time = time.time()
+                last_message = ""
+
+                # Poll for status updates
+                while process.poll() is None:  # Process still running
+                    if STATUS_FILE.exists():
+                        try:
+                            with open(STATUS_FILE, 'r') as f:
+                                status = json.load(f)
+                            message = status.get('message', '')
+                            progress = status.get('progress', 0)
+                            elapsed = status.get('elapsed_seconds', 0)
+                            eta = status.get('eta_seconds')
+
+                            if message != last_message or True:  # Always update for time
+                                last_message = message
+                                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                elapsed_str = format_time(elapsed)
+                                eta_str = format_time(eta) if eta else "calculating..."
+                                progress_bar = f"[{'█' * int(progress/5)}{'░' * (20-int(progress/5))}] {progress:.0f}%"
+                                yield f"[{ts}] {message}\nElapsed: {elapsed_str} | ETA: {eta_str}\n{progress_bar}"
+
+                            if status.get('complete') or status.get('error'):
+                                break
+                        except (json.JSONDecodeError, IOError):
+                            pass  # Status file being written
+
+                    time.sleep(2)  # Poll every 2 seconds
+
+                # Get final output
+                stdout, stderr = process.communicate(timeout=10)
+                end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                # Check final status
+                if STATUS_FILE.exists():
+                    try:
+                        with open(STATUS_FILE, 'r') as f:
+                            status = json.load(f)
+                        elapsed = status.get('elapsed_seconds', 0)
+                        elapsed_str = format_time(elapsed)
+                        if status.get('error'):
+                            yield f"[{end_timestamp}] {status.get('message', 'Unknown error')}"
+                            return
+                        if status.get('complete'):
+                            yield f"[{end_timestamp}] {status.get('message', 'Consolidation complete.')}\nTotal time: {elapsed_str}\n\nClick 'Refresh Consolidated Data' to see results."
+                            return
+                    except (json.JSONDecodeError, IOError):
+                        pass
+
+                if process.returncode == 0:
+                    yield f"[{end_timestamp}] Consolidation complete.\n\nClick 'Refresh Consolidated Data' to see results."
+                else:
+                    yield f"[{end_timestamp}] Consolidation finished with errors.\n\n{stderr}"
+
+            except Exception as e:
+                yield f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Error: {e}"
+
+        def view_idea_detail(evt: gr.SelectData, ideas_data):
+            if not ideas_data or evt.index[0] is None:
+                return None
+            if evt.index[0] < len(ideas_data):
+                return ideas_data[evt.index[0]]
+            return None
+
+        def view_problem_detail(evt: gr.SelectData, problems_data):
+            if not problems_data or evt.index[0] is None:
+                return None
+            if evt.index[0] < len(problems_data):
+                return problems_data[evt.index[0]]
+            return None
+
+        # Store full data for detail views
+        ideas_data_store = gr.State([])
+        problems_data_store = gr.State([])
+
+        refresh_btn.click(
+            fn=load_consolidated,
+            outputs=[
+                total_ideas, total_problems, total_workflows, source_count,
+                ideas_table, ideas_data_store,
+                problems_table, problems_data_store,
+                tools_chart, tools_freq_table,
+                timeline_chart, timeline_table
+            ]
+        )
+
+        run_consolidation_btn.click(
+            fn=run_consolidation,
+            outputs=[consolidation_log]
+        )
+
+        ideas_table.select(
+            fn=view_idea_detail,
+            inputs=[ideas_data_store],
+            outputs=[idea_detail]
+        )
+
+        problems_table.select(
+            fn=view_problem_detail,
+            inputs=[problems_data_store],
+            outputs=[problem_detail]
+        )
+
+    return (load_consolidated, [
+        total_ideas, total_problems, total_workflows, source_count,
+        ideas_table, ideas_data_store,
+        problems_table, problems_data_store,
+        tools_chart, tools_freq_table,
+        timeline_chart, timeline_table
+    ])
+
+
+# =============================================================================
+# CATEGORIES TAB
+# =============================================================================
+
+CATEGORIZED_FILE = CONSOLIDATED_DIR / "categorized.json"
+
+
+def load_categorized_data() -> dict | None:
+    """Load categorized data from disk."""
+    if not CATEGORIZED_FILE.exists():
+        return None
+    with open(CATEGORIZED_FILE, 'r') as f:
+        return json.load(f)
+
+
+def create_categories_tab():
+    """Create the categorization and scoring tab."""
+    with gr.Tab("Categories"):
+        gr.Markdown("## Categorized Ideas")
+        gr.Markdown("*Scored and prioritized by effort, monetization, utility, passion, and recurrence*")
+
+        # Summary stats
+        with gr.Row():
+            quick_wins_count = gr.Number(label="Quick Wins", interactive=False)
+            validate_count = gr.Number(label="Validate", interactive=False)
+            revive_count = gr.Number(label="Revive", interactive=False)
+            someday_count = gr.Number(label="Someday", interactive=False)
+
+        # Category filter
+        category_filter = gr.Radio(
+            choices=["All", "quick_win", "validate", "revive", "someday"],
+            value="All",
+            label="Filter by Category"
+        )
+
+        # Main table with scores
+        categories_table = gr.Dataframe(
+            headers=["Name", "Category", "Score", "Effort", "Monetization", "Utility", "Passion", "Recurrence"],
+            label="Scored Ideas",
+            interactive=False
+        )
+
+        gr.Markdown("### Selected Idea Details")
+        idea_detail = gr.JSON(label="Full Details")
+
+        with gr.Row():
+            refresh_btn = gr.Button("Refresh Categories", variant="primary")
+            run_categorization_btn = gr.Button("Run Categorization")
+
+        categorization_log = gr.Textbox(
+            label="Categorization Log",
+            value="Click 'Run Categorization' to start...",
+            lines=8,
+            interactive=False
+        )
+
+        # Quick Wins summary
+        gr.Markdown("---")
+        gr.Markdown("### Quick Wins")
+        gr.Markdown("*Low effort + High utility + High passion*")
+        quick_wins_table = gr.Dataframe(
+            headers=["Name", "Description", "Why It's a Quick Win"],
+            label="",
+            interactive=False
+        )
+
+        def load_categories(filter_category):
+            data = load_categorized_data()
+            if not data:
+                empty_msg = "No categorized data found. Run categorization first."
+                return (
+                    0, 0, 0, 0,
+                    [[empty_msg, "", "", "", "", "", "", ""]],
+                    None,
+                    [[empty_msg, "", ""]]
+                )
+
+            # Category counts
+            counts = data.get('metadata', {}).get('category_counts', {})
+            n_quick = counts.get('quick_win', 0)
+            n_validate = counts.get('validate', 0)
+            n_revive = counts.get('revive', 0)
+            n_someday = counts.get('someday', 0)
+
+            # Build main table
+            ideas = data.get('ideas', [])
+            rows = []
+
+            for idea in ideas:
+                category = idea.get('category', 'someday')
+
+                # Apply filter
+                if filter_category != "All" and category != filter_category:
+                    continue
+
+                scores = idea.get('scores', {})
+                rows.append([
+                    idea.get('name', 'Unknown')[:40],
+                    category,
+                    idea.get('composite_score', 0),
+                    scores.get('effort', '-'),
+                    scores.get('monetization', '-'),
+                    scores.get('personal_utility', '-'),
+                    scores.get('passion', '-'),
+                    scores.get('recurrence', '-')
+                ])
+
+            # Quick wins table
+            quick_wins = data.get('by_category', {}).get('quick_win', [])
+            quick_rows = []
+            for idea in quick_wins:
+                scores = idea.get('scores', {})
+                quick_rows.append([
+                    idea.get('name', 'Unknown'),
+                    idea.get('description', '')[:100],
+                    scores.get('llm_reasoning', '')[:100]
+                ])
+
+            if not quick_rows:
+                quick_rows = [["No quick wins identified", "", ""]]
+
+            return (
+                n_quick, n_validate, n_revive, n_someday,
+                rows,
+                ideas,
+                quick_rows
+            )
+
+        def run_categorization():
+            from datetime import datetime
+            import subprocess
+            import time
+
+            STATUS_FILE = Path("data/categorization_status.json")
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            yield f"[{timestamp}] Starting categorization...\n\nThis may take a minute or two. Please wait..."
+
+            # Clear old status file
+            if STATUS_FILE.exists():
+                STATUS_FILE.unlink()
+
+            try:
+                # Start process in background
+                process = subprocess.Popen(
+                    ["python3", "categorize.py"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=Path(__file__).parent,
+                    text=True
+                )
+
+                start_time = time.time()
+                last_message = ""
+
+                # Poll for status updates
+                while process.poll() is None:  # Process still running
+                    if STATUS_FILE.exists():
+                        try:
+                            with open(STATUS_FILE, 'r') as f:
+                                status = json.load(f)
+                            message = status.get('message', '')
+                            progress = status.get('progress', 0)
+                            elapsed = status.get('elapsed_seconds', 0)
+                            eta = status.get('eta_seconds')
+
+                            if message != last_message or True:  # Always update for time
+                                last_message = message
+                                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                elapsed_str = format_time(elapsed)
+                                eta_str = format_time(eta) if eta else "calculating..."
+                                progress_bar = f"[{'█' * int(progress/5)}{'░' * (20-int(progress/5))}] {progress:.0f}%"
+                                yield f"[{ts}] {message}\nElapsed: {elapsed_str} | ETA: {eta_str}\n{progress_bar}"
+
+                            if status.get('complete') or status.get('error'):
+                                break
+                        except (json.JSONDecodeError, IOError):
+                            pass  # Status file being written
+
+                    # Timeout after 10 minutes
+                    if time.time() - start_time > 600:
+                        process.kill()
+                        yield f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Error: Process timed out after 10 minutes."
+                        return
+
+                    time.sleep(2)  # Poll every 2 seconds
+
+                # Get final output
+                stdout, stderr = process.communicate(timeout=10)
+                end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                # Check final status
+                if STATUS_FILE.exists():
+                    try:
+                        with open(STATUS_FILE, 'r') as f:
+                            status = json.load(f)
+                        elapsed = status.get('elapsed_seconds', 0)
+                        elapsed_str = format_time(elapsed)
+                        if status.get('error'):
+                            yield f"[{end_timestamp}] {status.get('message', 'Unknown error')}"
+                            return
+                        if status.get('complete'):
+                            yield f"[{end_timestamp}] {status.get('message', 'Categorization complete.')}\nTotal time: {elapsed_str}\n\nClick 'Refresh Categories' to see results."
+                            return
+                    except (json.JSONDecodeError, IOError):
+                        pass
+
+                if process.returncode == 0:
+                    yield f"[{end_timestamp}] Categorization complete.\n\nClick 'Refresh Categories' to see results."
+                else:
+                    yield f"[{end_timestamp}] Categorization finished with errors.\n\n{stderr}"
+
+            except Exception as e:
+                yield f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Error: {e}"
+
+        def view_idea_detail(evt: gr.SelectData, ideas_data):
+            if not ideas_data or evt.index[0] is None:
+                return None
+            if evt.index[0] < len(ideas_data):
+                return ideas_data[evt.index[0]]
+            return None
+
+        # Store full data for detail view
+        ideas_data_store = gr.State([])
+
+        refresh_btn.click(
+            fn=load_categories,
+            inputs=[category_filter],
+            outputs=[
+                quick_wins_count, validate_count, revive_count, someday_count,
+                categories_table, ideas_data_store, quick_wins_table
+            ]
+        )
+
+        category_filter.change(
+            fn=load_categories,
+            inputs=[category_filter],
+            outputs=[
+                quick_wins_count, validate_count, revive_count, someday_count,
+                categories_table, ideas_data_store, quick_wins_table
+            ]
+        )
+
+        run_categorization_btn.click(
+            fn=run_categorization,
+            outputs=[categorization_log]
+        )
+
+        categories_table.select(
+            fn=view_idea_detail,
+            inputs=[ideas_data_store],
+            outputs=[idea_detail]
+        )
+
+
+# =============================================================================
+# SYNTHESIS TAB (Phase 5)
+# =============================================================================
+
+def create_synthesis_tab():
+    """Create the creative synthesis tab for generating novel project ideas."""
+    from synthesizer import (
+        run_synthesis, load_generated_ideas, load_passion_profile,
+        save_idea, dismiss_idea, develop_idea_further, get_synthesis_status,
+        load_saved_ideas, get_developed_ideas, get_developed_spec
+    )
+
+    with gr.Tab("Synthesis"):
+        gr.Markdown("## Creative Synthesis Engine")
+        gr.Markdown("Generate novel project ideas based on patterns in your conversation history.")
+
+        # Status and controls
+        with gr.Row():
+            with gr.Column(scale=2):
+                generate_btn = gr.Button("Generate Projects", variant="primary", size="lg")
+            with gr.Column(scale=3):
+                synthesis_status = gr.Textbox(
+                    label="Status",
+                    value="Ready to generate",
+                    interactive=False
+                )
+            with gr.Column(scale=1):
+                refresh_btn = gr.Button("Refresh", size="sm")
+
+        synthesis_progress = gr.Textbox(
+            label="Progress",
+            value="[░░░░░░░░░░░░░░░░░░░░] 0%",
+            interactive=False,
+            lines=1
+        )
+
+        gr.Markdown("---")
+
+        # Profile section
+        with gr.Accordion("Your Passion Profile", open=False):
+            profile_summary = gr.Markdown("*Run synthesis to generate your passion profile*")
+            profile_json = gr.JSON(label="Full Profile", visible=False)
+
+        gr.Markdown("---")
+        gr.Markdown("### Generated Projects")
+
+        # Ideas by strategy in nested tabs
+        with gr.Tabs():
+            with gr.Tab("Passion Intersections"):
+                gr.Markdown("*Novel combinations of your top themes*")
+                intersection_df = gr.Dataframe(
+                    headers=["Name", "Description", "Themes", "Score"],
+                    label="Intersection Projects",
+                    wrap=True
+                )
+
+            with gr.Tab("Problem Solvers"):
+                gr.Markdown("*Practical solutions to your pain points*")
+                solution_df = gr.Dataframe(
+                    headers=["Name", "Problem", "Tools", "Score"],
+                    label="Solution Projects",
+                    wrap=True
+                )
+
+            with gr.Tab("Profile Matches"):
+                gr.Markdown("*Projects tailored to your overall patterns*")
+                profile_df = gr.Dataframe(
+                    headers=["Name", "Description", "Alignment", "Score"],
+                    label="Profile Projects",
+                    wrap=True
+                )
+
+            with gr.Tab("Time Capsules"):
+                gr.Markdown("*Forgotten gems resurfaced with fresh perspective*")
+                capsule_df = gr.Dataframe(
+                    headers=["Name", "Original", "Months Ago", "Letter", "Score"],
+                    label="Time Capsule Projects",
+                    wrap=True
+                )
+
+            with gr.Tab("All Projects"):
+                gr.Markdown("*All generated projects sorted by score*")
+                all_ideas_df = gr.Dataframe(
+                    headers=["Name", "Strategy", "Description", "Score"],
+                    label="All Projects",
+                    wrap=True
+                )
+
+            with gr.Tab("Saved Projects"):
+                gr.Markdown("*Projects you've saved for later*")
+                saved_ideas_df = gr.Dataframe(
+                    headers=["Name", "Description", "Strategy", "Score", "Saved At"],
+                    label="Saved Projects",
+                    wrap=True
+                )
+                refresh_saved_btn = gr.Button("Refresh Saved Projects", size="sm")
+
+            with gr.Tab("Developed Specs"):
+                gr.Markdown("*Project specifications you've developed*")
+                developed_list_dropdown = gr.Dropdown(
+                    label="Select Developed Project",
+                    choices=[],
+                    interactive=True
+                )
+                refresh_developed_btn = gr.Button("Refresh List", size="sm")
+                developed_spec_json = gr.JSON(label="Project Specification")
+
+        gr.Markdown("---")
+        gr.Markdown("### Project Actions")
+
+        with gr.Row():
+            idea_dropdown = gr.Dropdown(
+                label="Select Project",
+                choices=[],
+                interactive=True
+            )
+            save_btn = gr.Button("Save", variant="secondary")
+            dismiss_btn = gr.Button("Dismiss", variant="secondary")
+            develop_btn = gr.Button("Develop Further", variant="primary")
+
+        action_result = gr.Markdown("")
+
+        with gr.Accordion("Developed Specification", open=False, visible=False) as dev_accordion:
+            developed_output = gr.JSON(label="Project Specification")
+
+        # Helper functions
+        def format_ideas_for_display(ideas: list, strategy: str = None) -> list:
+            """Format ideas for dataframe display."""
+            rows = []
+            for idea in ideas:
+                if strategy and idea.get("strategy") != strategy:
+                    continue
+
+                name = idea.get("name", "Unknown")
+                desc = idea.get("description", "")[:100] + "..." if len(idea.get("description", "")) > 100 else idea.get("description", "")
+                score = idea.get("composite_score", 0)
+
+                if strategy == "intersection":
+                    themes = ", ".join(idea.get("themes_combined", []))[:50]
+                    rows.append([name, desc, themes, score])
+                elif strategy == "problem_solution":
+                    problem = idea.get("problem_addressed", "")[:50]
+                    tools = ", ".join(idea.get("tools_used", []))[:30]
+                    rows.append([name, problem, tools, score])
+                elif strategy == "profile_based":
+                    align = idea.get("profile_alignment", "")[:50]
+                    rows.append([name, desc, align, score])
+                elif strategy == "time_capsule":
+                    orig = idea.get("original_idea", "")[:30]
+                    months = idea.get("months_ago", 0)
+                    letter = idea.get("letter_from_past", "")[:50]
+                    rows.append([name, orig, months, letter, score])
+                else:
+                    strat = idea.get("strategy", "unknown")
+                    rows.append([name, strat, desc, score])
+
+            return rows
+
+        def run_synthesis_handler():
+            """Handle synthesis generation."""
+            try:
+                result = run_synthesis()
+
+                if not result:
+                    return (
+                        "Synthesis failed - check console for errors",
+                        "[░░░░░░░░░░░░░░░░░░░░] 0%",
+                        "*Generation failed*",
+                        gr.update(visible=False),
+                        [], [], [], [], [],
+                        gr.update(choices=[])
+                    )
+
+                profile = result.get("profile", {})
+                all_ideas = result.get("all_ideas", [])
+
+                # Format profile summary
+                summary = profile.get("summary", "No summary available")
+                themes = [t.get("theme", t) if isinstance(t, dict) else t for t in profile.get("core_themes", [])]
+                profile_md = f"**Summary:** {summary}\n\n**Core Themes:** {', '.join(themes[:5])}"
+
+                # Format dataframes
+                intersection_rows = format_ideas_for_display(all_ideas, "intersection")
+                solution_rows = format_ideas_for_display(all_ideas, "problem_solution")
+                profile_rows = format_ideas_for_display(all_ideas, "profile_based")
+                capsule_rows = format_ideas_for_display(all_ideas, "time_capsule")
+                all_rows = format_ideas_for_display(all_ideas)
+
+                # Build dropdown choices
+                choices = [f"{idea.get('name', 'Unknown')} ({idea.get('id', '')})" for idea in all_ideas]
+
+                return (
+                    f"Complete! Generated {len(all_ideas)} projects",
+                    "[████████████████████] 100%",
+                    profile_md,
+                    gr.update(value=profile, visible=True),
+                    intersection_rows,
+                    solution_rows,
+                    profile_rows,
+                    capsule_rows,
+                    all_rows,
+                    gr.update(choices=choices, value=choices[0] if choices else None)
+                )
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                return (
+                    f"Error: {str(e)}",
+                    "[░░░░░░░░░░░░░░░░░░░░] 0%",
+                    "*Error during generation*",
+                    gr.update(visible=False),
+                    [], [], [], [], [],
+                    gr.update(choices=[])
+                )
+
+        def refresh_display():
+            """Refresh display from saved files."""
+            try:
+                generated = load_generated_ideas()
+                profile = load_passion_profile()
+                all_ideas = generated.get("ideas", [])
+
+                if not all_ideas:
+                    return (
+                        "No generated projects found",
+                        "[░░░░░░░░░░░░░░░░░░░░] 0%",
+                        "*Run synthesis to generate projects*",
+                        gr.update(visible=False),
+                        [], [], [], [], [],
+                        gr.update(choices=[])
+                    )
+
+                # Format profile summary
+                summary = profile.get("summary", "No profile available")
+                themes = [t.get("theme", t) if isinstance(t, dict) else t for t in profile.get("core_themes", [])]
+                profile_md = f"**Summary:** {summary}\n\n**Core Themes:** {', '.join(themes[:5])}"
+
+                # Format dataframes
+                intersection_rows = format_ideas_for_display(all_ideas, "intersection")
+                solution_rows = format_ideas_for_display(all_ideas, "problem_solution")
+                profile_rows = format_ideas_for_display(all_ideas, "profile_based")
+                capsule_rows = format_ideas_for_display(all_ideas, "time_capsule")
+                all_rows = format_ideas_for_display(all_ideas)
+
+                choices = [f"{idea.get('name', 'Unknown')} ({idea.get('id', '')})" for idea in all_ideas]
+
+                return (
+                    f"Loaded {len(all_ideas)} projects",
+                    "[████████████████████] 100%",
+                    profile_md,
+                    gr.update(value=profile, visible=True),
+                    intersection_rows,
+                    solution_rows,
+                    profile_rows,
+                    capsule_rows,
+                    all_rows,
+                    gr.update(choices=choices, value=choices[0] if choices else None)
+                )
+            except Exception as e:
+                return (
+                    f"Error loading: {str(e)}",
+                    "[░░░░░░░░░░░░░░░░░░░░] 0%",
+                    "*Error loading data*",
+                    gr.update(visible=False),
+                    [], [], [], [], [],
+                    gr.update(choices=[])
+                )
+
+        def save_idea_handler(selected):
+            """Handle saving a project."""
+            if not selected:
+                return "No project selected"
+            idea_id = selected.split("(")[-1].rstrip(")")
+            if save_idea(idea_id):
+                return f"Saved: {selected.split('(')[0].strip()}"
+            return "Failed to save project"
+
+        def dismiss_idea_handler(selected):
+            """Handle dismissing a project."""
+            if not selected:
+                return "No project selected"
+            idea_id = selected.split("(")[-1].rstrip(")")
+            if dismiss_idea(idea_id):
+                return f"Dismissed: {selected.split('(')[0].strip()}"
+            return "Failed to dismiss project"
+
+        def develop_idea_handler(selected):
+            """Handle developing a project further."""
+            if not selected:
+                return "No project selected", gr.update(visible=False), None
+            idea_id = selected.split("(")[-1].rstrip(")")
+            spec = develop_idea_further(idea_id)
+            if spec:
+                return (
+                    f"Developed: {selected.split('(')[0].strip()}",
+                    gr.update(visible=True),
+                    spec
+                )
+            return "Failed to develop project", gr.update(visible=False), None
+
+        def refresh_saved_ideas_handler():
+            """Refresh the saved ideas display."""
+            saved = load_saved_ideas()
+            if not saved:
+                return []
+
+            rows = []
+            for idea in saved:
+                name = idea.get("name", "Unknown")
+                desc = idea.get("description", "")[:80] + "..." if len(idea.get("description", "")) > 80 else idea.get("description", "")
+                strategy = idea.get("strategy", "unknown")
+                score = idea.get("composite_score", 0)
+                saved_at = idea.get("saved_at", "Unknown")[:10]  # Just date part
+                rows.append([name, desc, strategy, score, saved_at])
+            return rows
+
+        def refresh_developed_list_handler():
+            """Refresh the developed ideas dropdown."""
+            developed = get_developed_ideas()
+            if not developed:
+                return gr.update(choices=[], value=None), None
+
+            choices = [f"{d['idea_name']} ({d['idea_id']})" for d in developed]
+            return gr.update(choices=choices, value=choices[0] if choices else None), None
+
+        def load_developed_spec_handler(selected):
+            """Load and display a developed specification."""
+            if not selected:
+                return None
+            idea_id = selected.split("(")[-1].rstrip(")")
+            spec = get_developed_spec(idea_id)
+            return spec
+
+        # Wire up events
+        generate_btn.click(
+            fn=run_synthesis_handler,
+            outputs=[
+                synthesis_status, synthesis_progress, profile_summary, profile_json,
+                intersection_df, solution_df, profile_df, capsule_df, all_ideas_df,
+                idea_dropdown
+            ]
+        )
+
+        refresh_btn.click(
+            fn=refresh_display,
+            outputs=[
+                synthesis_status, synthesis_progress, profile_summary, profile_json,
+                intersection_df, solution_df, profile_df, capsule_df, all_ideas_df,
+                idea_dropdown
+            ]
+        )
+
+        save_btn.click(
+            fn=save_idea_handler,
+            inputs=[idea_dropdown],
+            outputs=[action_result]
+        )
+
+        dismiss_btn.click(
+            fn=dismiss_idea_handler,
+            inputs=[idea_dropdown],
+            outputs=[action_result]
+        )
+
+        develop_btn.click(
+            fn=develop_idea_handler,
+            inputs=[idea_dropdown],
+            outputs=[action_result, dev_accordion, developed_output]
+        )
+
+        # Wire up saved/developed tabs
+        refresh_saved_btn.click(
+            fn=refresh_saved_ideas_handler,
+            outputs=[saved_ideas_df]
+        )
+
+        refresh_developed_btn.click(
+            fn=refresh_developed_list_handler,
+            outputs=[developed_list_dropdown, developed_spec_json]
+        )
+
+        developed_list_dropdown.change(
+            fn=load_developed_spec_handler,
+            inputs=[developed_list_dropdown],
+            outputs=[developed_spec_json]
+        )
+
+
+# =============================================================================
+# SETTINGS TAB
+# =============================================================================
+
+def create_settings_tab():
+    """Create the settings and data management tab."""
+    from config import load_config, save_config
+    from data_management import get_data_status, reset_extractions, reset_all_processed, format_status_markdown
+
+    with gr.Tab("Settings"):
+        gr.Markdown("## Settings")
+
+        # =====================================================================
+        # API Configuration Section
+        # =====================================================================
+        gr.Markdown("### API Configuration")
+
+        config = load_config()
+
+        with gr.Row():
+            with gr.Column():
+                provider_dropdown = gr.Dropdown(
+                    choices=["openai", "anthropic"],
+                    value=config.get("api_provider", "openai"),
+                    label="API Provider"
+                )
+                model_input = gr.Textbox(
+                    value=config.get("model", "gpt-4o-mini"),
+                    label="Model"
+                )
+
+            with gr.Column():
+                api_key_input = gr.Textbox(
+                    value=config.get("api_key", ""),
+                    label="API Key",
+                    type="password",
+                    placeholder="Leave blank to use environment variable"
+                )
+                rate_limit_input = gr.Number(
+                    label="Requests per minute (1-60)",
+                    value=config.get("requests_per_minute", 20),
+                    minimum=1,
+                    maximum=60,
+                    step=1
+                )
+
+        save_settings_btn = gr.Button("Save Settings", variant="primary")
+        settings_result = gr.Markdown("")
+
+        def save_settings(provider, model, api_key, rate_limit):
+            try:
+                current_config = load_config()
+                new_config = {
+                    "api_provider": provider,
+                    "model": model,
+                    "api_key": api_key,
+                    "requests_per_minute": int(rate_limit),
+                    "retry_attempts": 2,
+                    "theme_color": current_config.get("theme_color", "#00ff00")
+                }
+                save_config(new_config)
+                return "Settings saved successfully."
+            except Exception as e:
+                return f"Error saving settings: {e}"
+
+        save_settings_btn.click(
+            fn=save_settings,
+            inputs=[provider_dropdown, model_input, api_key_input, rate_limit_input],
+            outputs=[settings_result]
+        )
+
+        # =====================================================================
+        # Theme Configuration Section
+        # =====================================================================
+        gr.Markdown("---")
+        gr.Markdown("### Theme Color")
+        gr.Markdown("*Change the UI accent color. Changes apply live; restart app for full effect.*")
+
+        with gr.Row():
+            color_picker = gr.ColorPicker(
+                value=config.get("theme_color", "#00ff00"),
+                label="Theme Color",
+                interactive=True
+            )
+            save_color_btn = gr.Button("Save Color", variant="primary")
+
+        color_result = gr.Markdown("")
+
+        def save_theme_color(color):
+            try:
+                # Convert to hex format for consistent storage
+                r, g, b = parse_color_to_rgb(color)
+                hex_color = f"#{r:02x}{g:02x}{b:02x}"
+
+                current_config = load_config()
+                current_config["theme_color"] = hex_color
+                save_config(current_config)
+                return f"Theme color saved: {hex_color}"
+            except Exception as e:
+                return f"Error saving color: {e}"
+
+        # Live color update via JavaScript
+        color_picker.change(
+            fn=None,
+            inputs=[color_picker],
+            outputs=None,
+            js="(color) => { updateThemeColor(color); return color; }"
+        )
+
+        save_color_btn.click(
+            fn=save_theme_color,
+            inputs=[color_picker],
+            outputs=[color_result]
+        )
+
+        # =====================================================================
+        # Data Management Section
+        # =====================================================================
+        gr.Markdown("---")
+        gr.Markdown("### Data Management")
+
+        status = get_data_status()
+        status_display = gr.Markdown(format_status_markdown(status))
+
+        refresh_status_btn = gr.Button("Refresh Status")
+
+        def refresh_status():
+            status = get_data_status()
+            return format_status_markdown(status)
+
+        refresh_status_btn.click(
+            fn=refresh_status,
+            outputs=[status_display]
+        )
+
+        # Reset controls
+        gr.Markdown("---")
+        gr.Markdown("### Reset Data")
+        gr.Markdown("*Warning: These actions cannot be undone.*")
+
+        confirm_checkbox = gr.Checkbox(
+            label="I understand this action cannot be undone",
+            value=False
+        )
+
+        with gr.Row():
+            reset_extractions_btn = gr.Button(
+                "Reset Extractions",
+                interactive=False
+            )
+            reset_all_btn = gr.Button(
+                "Reset All Processed Data",
+                interactive=False
+            )
+
+        reset_result = gr.Markdown("")
+
+        def toggle_reset_buttons(confirmed):
+            return (
+                gr.update(interactive=confirmed),
+                gr.update(interactive=confirmed)
+            )
+
+        confirm_checkbox.change(
+            fn=toggle_reset_buttons,
+            inputs=[confirm_checkbox],
+            outputs=[reset_extractions_btn, reset_all_btn]
+        )
+
+        def do_reset_extractions():
+            result = reset_extractions()
+            status = get_data_status()
+            return (
+                f"Deleted {result['deleted']} extraction files.",
+                format_status_markdown(status),
+                False,  # Uncheck the confirmation
+                gr.update(interactive=False),  # Disable reset extractions button
+                gr.update(interactive=False)   # Disable reset all button
+            )
+
+        def do_reset_all():
+            result = reset_all_processed()
+            status = get_data_status()
+            msg_parts = [f"Deleted {result['extractions']} extraction files."]
+            if result['consolidated']:
+                msg_parts.append("Deleted consolidated.json.")
+            if result['categorized']:
+                msg_parts.append("Deleted categorized.json.")
+            return (
+                " ".join(msg_parts),
+                format_status_markdown(status),
+                False,  # Uncheck the confirmation
+                gr.update(interactive=False),  # Disable reset extractions button
+                gr.update(interactive=False)   # Disable reset all button
+            )
+
+        reset_extractions_btn.click(
+            fn=do_reset_extractions,
+            outputs=[reset_result, status_display, confirm_checkbox, reset_extractions_btn, reset_all_btn]
+        )
+
+        reset_all_btn.click(
+            fn=do_reset_all,
+            outputs=[reset_result, status_display, confirm_checkbox, reset_extractions_btn, reset_all_btn]
+        )
+
+
+# =============================================================================
+# JAVASCRIPT FOR LIVE COLOR UPDATES
+# =============================================================================
+
+THEME_UPDATE_JS = """
+function updateThemeColor(color) {
+    // Generate shades from base color
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+
+    function shade(factor) {
+        return '#' + [r, g, b].map(c =>
+            Math.round(c * factor).toString(16).padStart(2, '0')
+        ).join('');
+    }
+
+    const shades = {
+        full: color,
+        dark: shade(0.4),
+        medium: shade(0.6),
+        dim: shade(0.2),
+        faint: shade(0.1)
+    };
+
+    // Update CSS variables
+    document.documentElement.style.setProperty('--theme-color', shades.full);
+    document.documentElement.style.setProperty('--theme-color-dark', shades.dark);
+    document.documentElement.style.setProperty('--theme-color-medium', shades.medium);
+    document.documentElement.style.setProperty('--theme-color-dim', shades.dim);
+    document.documentElement.style.setProperty('--theme-color-faint', shades.faint);
+
+    return color;
+}
+"""
+
+# =============================================================================
 # MAIN APP
 # =============================================================================
 
 def create_app():
     """Create the main Gradio app."""
-    theme = MatrixTheme()
+    from config import load_config
+    config = load_config()
+    theme_color = config.get('theme_color', '#00ff00')
+
+    # Generate theme components (passed to launch())
+    theme = create_matrix_theme(theme_color)
+    css = generate_matrix_css(theme_color)
+
     with gr.Blocks(title="Resurface") as app:
-        app.theme = theme
+        # Store for use in launch()
+        app._matrix_theme = theme
+        app._matrix_css = css
+        app._matrix_js = THEME_UPDATE_JS
+
         gr.Markdown("# Resurface")
 
         dashboard_load_fn, dashboard_outputs = create_dashboard_tab()
@@ -1088,21 +3004,17 @@ def create_app():
         create_tools_tab()
         create_emotions_tab()
 
-        # Future tabs (stubs)
-        with gr.Tab("Consolidated"):
-            gr.Markdown("## Consolidated View")
-            gr.Markdown("*Coming soon - Phase 3*")
-            gr.Markdown("This tab will show deduplicated and merged insights.")
+        # Consolidated tab (Phase 3)
+        create_consolidated_tab()
 
-        with gr.Tab("Categories"):
-            gr.Markdown("## Categories")
-            gr.Markdown("*Coming soon - Phase 4*")
-            gr.Markdown("This tab will allow categorizing and scoring ideas.")
+        # Categories tab (Phase 4)
+        create_categories_tab()
 
-        with gr.Tab("Reports"):
-            gr.Markdown("## Reports & Export")
-            gr.Markdown("*Coming soon - Phase 5*")
-            gr.Markdown("This tab will generate filtered views and export options.")
+        # Synthesis tab (Phase 5)
+        create_synthesis_tab()
+
+        # Settings tab (last)
+        create_settings_tab()
 
         # Auto-load dashboard on start
         app.load(fn=dashboard_load_fn, outputs=dashboard_outputs)
@@ -1112,4 +3024,10 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
-    app.launch(share=False, css=MATRIX_CSS)
+    app.launch(
+        share=False,
+        allowed_paths=["assets"],
+        theme=app._matrix_theme,
+        css=app._matrix_css,
+        js=app._matrix_js
+    )
