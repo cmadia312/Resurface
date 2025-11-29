@@ -1043,8 +1043,6 @@ def aggregate_emotions() -> dict:
 def create_dashboard_tab():
     """Create the dashboard tab."""
     with gr.Tab("Dashboard"):
-        gr.Markdown("## Resurface Dashboard")
-
         with gr.Row():
             total_box = gr.Number(label="Total Conversations", interactive=False)
             extracted_box = gr.Number(label="Extracted", interactive=False)
