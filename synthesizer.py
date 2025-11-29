@@ -145,20 +145,59 @@ def load_synthesis_inputs() -> tuple[dict, dict] | None:
     return consolidated, categorized
 
 
+def prepare_profile_data_for_llm(consolidated: dict, categorized: dict,
+                                  max_ideas: int = 30, max_problems: int = 20,
+                                  max_workflows: int = 15, max_emotions: int = 50) -> dict:
+    """Prepare truncated data for LLM to avoid context length issues."""
+    # Get top ideas by composite score (already sorted)
+    ideas = categorized.get("ideas", [])[:max_ideas]
+    slim_ideas = [{
+        "name": i.get("name"),
+        "description": i.get("description", "")[:200],
+        "category": i.get("category"),
+        "occurrences": i.get("occurrences"),
+        "scores": {k: v for k, v in i.get("scores", {}).items() if k in ["passion", "recurrence"]}
+    } for i in ideas]
+
+    # Top problems
+    problems = consolidated.get("problem_clusters", [])[:max_problems]
+    slim_problems = [{"name": p.get("name"), "description": p.get("description", "")[:200]} for p in problems]
+
+    # Top workflows
+    workflows = consolidated.get("workflow_clusters", [])[:max_workflows]
+    slim_workflows = [{"name": w.get("name"), "description": w.get("description", "")[:200]} for w in workflows]
+
+    # Tool frequency - top 20
+    tools = consolidated.get("tool_frequency", {})
+    top_tools = dict(sorted(tools.items(), key=lambda x: x[1], reverse=True)[:20])
+
+    # Emotional timeline - sample evenly
+    emotions = consolidated.get("emotional_timeline", [])
+    if len(emotions) > max_emotions:
+        step = len(emotions) // max_emotions
+        emotions = emotions[::step][:max_emotions]
+
+    return {
+        "top_ideas": slim_ideas,
+        "top_problems": slim_problems,
+        "top_workflows": slim_workflows,
+        "tool_frequency": top_tools,
+        "emotional_samples": emotions,
+        "total_counts": {
+            "ideas": len(categorized.get("ideas", [])),
+            "problems": len(consolidated.get("problem_clusters", [])),
+            "workflows": len(consolidated.get("workflow_clusters", []))
+        }
+    }
+
+
 def build_passion_profile(consolidated: dict, categorized: dict, config: dict) -> dict:
     """
     Build comprehensive passion profile from all available data.
     Uses LLM to synthesize patterns.
     """
-    # Prepare data for the LLM
-    profile_data = {
-        "idea_clusters": consolidated.get("idea_clusters", []),
-        "problem_clusters": consolidated.get("problem_clusters", []),
-        "workflow_clusters": consolidated.get("workflow_clusters", []),
-        "tool_frequency": consolidated.get("tool_frequency", {}),
-        "emotional_timeline": consolidated.get("emotional_timeline", []),
-        "categorized_ideas": categorized.get("ideas", [])
-    }
+    # Prepare truncated data for the LLM to avoid context length issues
+    profile_data = prepare_profile_data_for_llm(consolidated, categorized)
 
     schema = """{
   "core_themes": [{"theme": "string", "strength": 1-5, "evidence": "string"}],
@@ -174,15 +213,15 @@ def build_passion_profile(consolidated: dict, categorized: dict, config: dict) -
   "summary": "2-3 sentence description"
 }"""
 
+    total = profile_data.get("total_counts", {})
     prompt = f"""Analyze this user's conversation history data and build a passion profile.
 
-DATA PROVIDED:
-- Idea Clusters (deduplicated project ideas with occurrence counts and motivations)
-- Problem Clusters (pain points with contexts)
-- Workflow Clusters (automations and processes)
-- Tool Frequency (technologies mentioned and how often)
-- Emotional Timeline (conversation tones over time)
-- Categorized Ideas (with passion, recurrence, effort scores)
+DATA PROVIDED (sampled from {total.get('ideas', 0)} ideas, {total.get('problems', 0)} problems, {total.get('workflows', 0)} workflows):
+- Top Ideas (highest scoring project ideas with categories and passion/recurrence scores)
+- Top Problems (pain points)
+- Top Workflows (automations and processes)
+- Tool Frequency (top technologies mentioned)
+- Emotional Samples (conversation tones over time)
 
 {json.dumps(profile_data, indent=2)}
 

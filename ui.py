@@ -1060,13 +1060,6 @@ def create_dashboard_tab():
             problems_count = gr.Number(label="Total Problems", interactive=False)
             tools_count = gr.Number(label="Unique Tools", interactive=False)
 
-        gr.Markdown("### Recent Extractions")
-        recent_table = gr.Dataframe(
-            headers=["Title", "Date", "Ideas", "Problems", "Tone"],
-            label="",
-            interactive=False
-        )
-
         refresh_btn = gr.Button("Refresh Dashboard", variant="primary")
 
         def refresh_dashboard():
@@ -1077,37 +1070,6 @@ def create_dashboard_tab():
             ideas = aggregate_ideas()
             problems = aggregate_problems()
             tools = aggregate_tools()
-
-            # Recent extractions table
-            recent_data = []
-            sorted_extractions = sorted(
-                extractions,
-                key=lambda x: x.get('extracted_at', ''),
-                reverse=True
-            )[:10]
-
-            for ext in sorted_extractions:
-                extraction = ext.get('extraction', {})
-                if extraction.get('error'):
-                    tone = "ERROR"
-                    n_ideas = 0
-                    n_probs = 0
-                elif extraction.get('empty'):
-                    tone = "empty"
-                    n_ideas = 0
-                    n_probs = 0
-                else:
-                    tone = extraction.get('emotional_signals', {}).get('tone', '-')
-                    n_ideas = len(extraction.get('project_ideas', []))
-                    n_probs = len(extraction.get('problems', []))
-
-                recent_data.append([
-                    ext.get('conversation_title', 'Untitled')[:40],
-                    ext.get('conversation_date', '-'),
-                    n_ideas,
-                    n_probs,
-                    tone
-                ])
 
             # Create visual progress bar
             pct = status['progress']
@@ -1123,23 +1085,20 @@ def create_dashboard_tab():
                 progress_text,
                 len(ideas),
                 len(problems),
-                len(tools),
-                recent_data
+                len(tools)
             )
 
         refresh_btn.click(
             fn=refresh_dashboard,
             outputs=[
                 total_box, extracted_box, remaining_box, errors_box,
-                progress_bar, ideas_count, problems_count, tools_count,
-                recent_table
+                progress_bar, ideas_count, problems_count, tools_count
             ]
         )
 
     return (refresh_dashboard, [
         total_box, extracted_box, remaining_box, errors_box,
-        progress_bar, ideas_count, problems_count, tools_count,
-        recent_table
+        progress_bar, ideas_count, problems_count, tools_count
     ])
 
 

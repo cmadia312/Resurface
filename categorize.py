@@ -286,31 +286,31 @@ def parse_json_array(text: str) -> list[dict]:
 
 def determine_category(scores: dict) -> str:
     """
-    Determine category based on composite scores.
+    Determine category based on passion and recurrence scores.
+
+    Note: LLM-based scores (effort, monetization, utility) are currently unreliable
+    (all defaulting to 3), so we use only rule-based dimensions.
 
     Categories:
-    - quick_win: Low effort + High utility + High passion
-    - validate: High monetization + Medium effort
-    - revive: High recurrence + High passion + Stalled
+    - revive: Ideas you keep returning to (3+ mentions)
+    - quick_win: Most exciting ideas you haven't pursued yet
+    - validate: Good excitement + mentioned twice (worth investigating)
     - someday: Everything else
     """
-    effort = scores.get('effort', 3)
-    monetization = scores.get('monetization', 3)
-    utility = scores.get('personal_utility', 3)
     passion = scores.get('passion', 3)
     recurrence = scores.get('recurrence', 1)
 
-    # Quick win: Easy to build, useful to you, you're excited about it
-    if effort <= 2 and utility >= 4 and passion >= 3:
+    # Revive: Ideas you keep returning to (3+ mentions)
+    if recurrence >= 3:
+        return 'revive'
+
+    # Quick win: Your most exciting ideas that you haven't yet pursued
+    if passion == 5 and recurrence < 3:
         return 'quick_win'
 
-    # Validate: Could make money, reasonable effort
-    if monetization >= 4 and effort <= 4:
+    # Validate: Good excitement + mentioned twice (worth investigating)
+    if passion >= 4 and recurrence == 2:
         return 'validate'
-
-    # Revive: Kept coming back to it, were passionate, but seems stalled
-    if recurrence >= 3 and passion >= 3:
-        return 'revive'
 
     return 'someday'
 
