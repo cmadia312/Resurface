@@ -1,38 +1,71 @@
 # Resurface
 
-A tool for extracting insights from your ChatGPT conversation history using LLM analysis.
+A tool for extracting actionable insights from your ChatGPT conversation history using LLM analysis.
 
 ## Overview
 
-Resurface parses ChatGPT export files, extracts meaningful patterns using LLMs (Anthropic Claude or OpenAI GPT), and presents consolidated insights through a web interface.
+Resurface parses ChatGPT export files, extracts meaningful patterns using LLMs (Anthropic Claude or OpenAI GPT), and presents consolidated insights through a web interface. It helps you discover recurring themes, project ideas, problems you're trying to solve, and emotional patterns across your conversations.
 
 ## Features
 
+### Core Analysis Pipeline
 - **Parse** ChatGPT JSON exports into clean, linearized conversation files
-- **Extract** insights including:
+- **Extract** insights using LLM analysis:
   - Project ideas with motivation and detail level
-  - Problems and pain points
+  - Problems and pain points (implicit project seeds)
   - Workflows being explored or built
   - Tools, APIs, and libraries evaluated
-  - Underlying questions and themes
+  - Underlying questions and recurring themes
   - Emotional signals (excited, frustrated, curious, stuck)
-- **Consolidate** extractions into unified views
-- **Visualize** through a Gradio web UI with customizable theming
+- **Consolidate** extractions by grouping similar items across conversations
+- **Categorize** ideas with multi-dimensional scoring:
+  - Recurrence (how often it comes up)
+  - Passion (emotional investment)
+  - Effort (estimated implementation time: 1-5 scale)
+  - Monetization potential (1-5 scale)
+  - Personal utility (1-5 scale)
+- **Synthesize** new project ideas using four strategies:
+  - Passion intersections (combining top themes)
+  - Problem-solution matching
+  - Profile-based generation
+  - Time capsule (resurfacing old ideas with new context)
+
+### Web Interface
+- **Dashboard**: Overview of processing progress and statistics
+- **Extraction**: Run LLM analysis on parsed conversations with progress tracking
+- **Browser**: Browse individual conversations and their extractions
+- **Ideas**: View all extracted project ideas with filtering
+- **Problems**: Explore identified problems and pain points
+- **Tools**: See which tools and APIs you're exploring
+- **Emotions**: View emotional tone across conversations
+- **Consolidated**: View merged insights with source tracking
+- **Categories**: See ideas organized by type (Quick Win, Validate, Revive, Someday)
+- **Synthesis**: Generate and evaluate AI-created project ideas
+- **Settings**: Configure API provider, model, theme, and rate limiting
+- **Upload**: Import new ChatGPT conversation exports
+
+### Additional Capabilities
+- Resumable extraction with progress tracking
+- Configurable rate limiting for API calls
+- Customizable UI theming
+- Dyslexia-friendly font option
 
 ## Setup
 
-1. Create and activate a virtual environment:
+### 1. Create and activate a virtual environment
+
 ```bash
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-2. Install dependencies:
+### 2. Install dependencies
+
 ```bash
-pip install gradio pandas plotly anthropic openai
+pip install -r requirements.txt
 ```
 
-3. Configure your API key:
+### 3. Configure your API key
 
 Either set an environment variable:
 ```bash
@@ -41,13 +74,13 @@ export OPENAI_API_KEY="your-key"
 export ANTHROPIC_API_KEY="your-key"
 ```
 
-Or edit `config.json` after first run.
+Or copy `config.example.json` to `config.json` and add your key there.
 
 ## Usage
 
 ### 1. Export your ChatGPT data
 
-Go to ChatGPT Settings > Data Controls > Export data. Place `conversations.json` in `data/`.
+Go to ChatGPT Settings > Data Controls > Export data. Place `conversations.json` in the `data/` directory.
 
 ### 2. Parse conversations
 
@@ -63,11 +96,23 @@ This creates individual JSON files in `data/parsed/` for conversations with 4+ t
 python ui.py
 ```
 
-Open the displayed URL to access the web interface where you can:
-- Run extractions on parsed conversations
-- View and explore extracted insights
-- Consolidate findings across conversations
-- Configure settings
+Open the displayed URL to access the web interface.
+
+### 4. Processing Workflow
+
+The full analysis pipeline:
+
+```
+Parse → Extract → Consolidate → Categorize → Synthesize
+```
+
+1. **Parse**: Converts raw ChatGPT export to individual conversation files
+2. **Extract**: LLM analyzes each conversation for insights
+3. **Consolidate**: Groups similar items across all conversations
+4. **Categorize**: Scores and categorizes project ideas
+5. **Synthesize**: Generates new ideas from identified patterns
+
+Each step can be run from the web UI, and progress is tracked so you can resume interrupted operations.
 
 ## Configuration
 
@@ -88,27 +133,40 @@ Edit `config.json`:
 |--------|-------------|
 | `api_provider` | `"anthropic"` or `"openai"` |
 | `model` | Model identifier (e.g., `gpt-4o-mini`, `claude-sonnet-4-20250514`) |
-| `api_key` | API key (or use environment variable) |
+| `api_key` | API key (or use environment variable instead) |
 | `requests_per_minute` | Rate limiting for API calls |
-| `theme_color` | UI accent color in hex (default: Matrix green `#00ff00`) |
+| `retry_attempts` | Number of retries for failed API calls |
+| `theme_color` | UI accent color in hex (default: `#00ff00`) |
 
 ## File Structure
 
 ```
 Resurface/
-├── parser.py          # Parse ChatGPT exports
-├── extractor.py       # LLM extraction logic
-├── ui.py              # Gradio web interface
-├── config.py          # Configuration management
-├── config.json        # User configuration
-├── assets/            # UI assets (fonts)
+├── parser.py              # Parse ChatGPT exports into individual files
+├── extractor.py           # LLM extraction logic and prompts
+├── runner.py              # Batch extraction orchestration
+├── consolidate.py         # Merge similar items across conversations
+├── categorize.py          # Score and categorize project ideas
+├── synthesizer.py         # Generate new ideas from patterns
+├── data_management.py     # Status tracking and reset utilities
+├── config.py              # Configuration management
+├── ui.py                  # Gradio web interface
+├── config.json            # User configuration (create from example)
+├── config.example.json    # Configuration template
+├── requirements.txt       # Python dependencies
+├── assets/                # UI assets (fonts)
 └── data/
-    ├── conversations.json    # ChatGPT export (you provide)
-    ├── parsed/               # Individual conversation files
-    ├── extractions/          # LLM extraction results
-    └── consolidated/         # Consolidated insights
+    ├── conversations.json # ChatGPT export (you provide)
+    ├── parsed/            # Individual conversation files
+    ├── extractions/       # LLM extraction results
+    ├── consolidated/      # Merged insights
+    └── synthesized/       # AI-generated ideas and profiles
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT
+MIT - see [LICENSE](LICENSE) for details.

@@ -3,7 +3,9 @@
 Resurface UI - Gradio interface for conversation extraction and analysis.
 """
 import json
+import shutil
 import subprocess
+import time
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -349,6 +351,22 @@ button.primary:hover,
 button.lg.primary:hover {{
     background: var(--theme-color-dark) !important;
     background-color: var(--theme-color-dark) !important;
+}}
+
+/* Secondary buttons - outlined style with border */
+button.secondary,
+button[variant="secondary"],
+.secondary-btn,
+.gr-button-secondary {{
+    background: transparent !important;
+    background-color: transparent !important;
+    color: var(--theme-color) !important;
+    border: 1px solid var(--theme-color) !important;
+}}
+button.secondary:hover,
+button[variant="secondary"]:hover {{
+    background: var(--theme-color-faint) !important;
+    background-color: var(--theme-color-faint) !important;
 }}
 
 /* Slider track */
@@ -1042,7 +1060,7 @@ def aggregate_emotions() -> dict:
 
 def create_dashboard_tab():
     """Create the dashboard tab."""
-    with gr.Tab("Dashboard"):
+    with gr.Tab("Dashboard", id="dashboard"):
         with gr.Row():
             total_box = gr.Number(label="Total Conversations", interactive=False)
             extracted_box = gr.Number(label="Extracted", interactive=False)
@@ -1168,7 +1186,27 @@ def create_extraction_tab():
         gr.Markdown("### Extract Specific Conversation")
         with gr.Row():
             conv_id_input = gr.Textbox(label="Conversation ID", placeholder="Enter UUID...")
-            extract_one_btn = gr.Button("Extract This")
+            extract_one_btn = gr.Button("Extract This", variant="secondary")
+
+        # Full Process Pipeline section
+        gr.Markdown("---")
+        gr.Markdown("### Automated Processing Pipeline")
+        gr.Markdown("After extracting conversations, run the full analysis pipeline: **Consolidation → Categorization → Synthesis**")
+
+        with gr.Row():
+            run_full_process_btn = gr.Button(
+                "Run Full Process on Extracted Conversations",
+                variant="primary",
+                size="lg"
+            )
+
+        full_process_log = gr.Textbox(
+            label="Pipeline Log",
+            value="Click 'Run Full Process' to execute all analysis steps sequentially on your extracted conversations.",
+            lines=20,
+            max_lines=40,
+            interactive=False
+        )
 
         def run_extraction_with_polling(count=None, extract_all=False):
             """Run extraction with polling for status updates."""
@@ -1285,9 +1323,215 @@ def create_extraction_tab():
             except Exception as e:
                 return f"Error: {e}"
 
+        def run_full_process():
+            """Execute full analysis pipeline: Consolidation → Categorization → Synthesis."""
+            from synthesizer import run_synthesis
+
+            start_time = time.time()
+            overall_log = []
+
+            # Check prerequisites
+            extraction_files = list(EXTRACTIONS_DIR.glob("*.json"))
+            extraction_count = len([f for f in extraction_files if not f.name.startswith("_")])
+
+            if extraction_count == 0:
+                yield "Error: No extracted conversations found.\n\nPlease run extraction first before running the full process."
+                return
+
+            overall_log.append("=" * 60)
+            overall_log.append("FULL PROCESS PIPELINE")
+            overall_log.append("=" * 60)
+            overall_log.append(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            overall_log.append(f"Extracted conversations: {extraction_count}")
+            overall_log.append("")
+            yield "\n".join(overall_log)
+
+            # ================================================================
+            # PHASE 1: CONSOLIDATION
+            # ================================================================
+            overall_log.append("-" * 60)
+            overall_log.append("PHASE 1: CONSOLIDATION")
+            overall_log.append("-" * 60)
+            yield "\n".join(overall_log)
+
+            consolidation_status_file = Path("data/consolidation_status.json")
+            if consolidation_status_file.exists():
+                consolidation_status_file.unlink()
+
+            try:
+                consolidation_process = subprocess.Popen(
+                    ["python3", "consolidate.py"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=Path(__file__).parent,
+                    text=True
+                )
+
+                phase_start = time.time()
+                last_message = ""
+
+                while consolidation_process.poll() is None:
+                    if consolidation_status_file.exists():
+                        try:
+                            with open(consolidation_status_file, 'r') as f:
+                                status = json.load(f)
+
+                            message = status.get('message', '')
+                            progress = status.get('progress', 0) or 0
+
+                            if message != last_message:
+                                last_message = message
+                                progress_bar = f"[{'█' * int(progress/5)}{'░' * (20-int(progress/5))}] {progress:.0f}%"
+                                overall_log.append(f"  {message} {progress_bar}")
+                                yield "\n".join(overall_log)
+
+                            if status.get('complete') or status.get('error'):
+                                break
+                        except (json.JSONDecodeError, IOError):
+                            pass
+
+                    time.sleep(2)
+
+                stdout, stderr = consolidation_process.communicate(timeout=10)
+
+                if consolidation_process.returncode == 0:
+                    phase_time = time.time() - phase_start
+                    overall_log.append(f"  ✓ Consolidation complete ({format_time(phase_time)})")
+                    overall_log.append("")
+                    yield "\n".join(overall_log)
+                else:
+                    overall_log.append(f"  ✗ Consolidation failed")
+                    if stderr:
+                        overall_log.append(f"  Error: {stderr[:500]}")
+                    yield "\n".join(overall_log)
+                    return
+
+            except Exception as e:
+                overall_log.append(f"  ✗ Error: {e}")
+                yield "\n".join(overall_log)
+                return
+
+            # ================================================================
+            # PHASE 2: CATEGORIZATION
+            # ================================================================
+            overall_log.append("-" * 60)
+            overall_log.append("PHASE 2: CATEGORIZATION")
+            overall_log.append("-" * 60)
+            yield "\n".join(overall_log)
+
+            categorization_status_file = Path("data/categorization_status.json")
+            if categorization_status_file.exists():
+                categorization_status_file.unlink()
+
+            try:
+                categorization_process = subprocess.Popen(
+                    ["python3", "categorize.py"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=Path(__file__).parent,
+                    text=True
+                )
+
+                phase_start = time.time()
+                last_message = ""
+
+                while categorization_process.poll() is None:
+                    if categorization_status_file.exists():
+                        try:
+                            with open(categorization_status_file, 'r') as f:
+                                status = json.load(f)
+
+                            message = status.get('message', '')
+                            progress = status.get('progress', 0) or 0
+
+                            if message != last_message:
+                                last_message = message
+                                progress_bar = f"[{'█' * int(progress/5)}{'░' * (20-int(progress/5))}] {progress:.0f}%"
+                                overall_log.append(f"  {message} {progress_bar}")
+                                yield "\n".join(overall_log)
+
+                            if status.get('complete') or status.get('error'):
+                                break
+                        except (json.JSONDecodeError, IOError):
+                            pass
+
+                    time.sleep(2)
+
+                stdout, stderr = categorization_process.communicate(timeout=10)
+
+                if categorization_process.returncode == 0:
+                    phase_time = time.time() - phase_start
+                    overall_log.append(f"  ✓ Categorization complete ({format_time(phase_time)})")
+                    overall_log.append("")
+                    yield "\n".join(overall_log)
+                else:
+                    overall_log.append(f"  ✗ Categorization failed")
+                    if stderr:
+                        overall_log.append(f"  Error: {stderr[:500]}")
+                    yield "\n".join(overall_log)
+                    return
+
+            except Exception as e:
+                overall_log.append(f"  ✗ Error: {e}")
+                yield "\n".join(overall_log)
+                return
+
+            # ================================================================
+            # PHASE 3: SYNTHESIS
+            # ================================================================
+            overall_log.append("-" * 60)
+            overall_log.append("PHASE 3: SYNTHESIS")
+            overall_log.append("-" * 60)
+            yield "\n".join(overall_log)
+
+            try:
+                phase_start = time.time()
+                overall_log.append("  Starting synthesis generation...")
+                yield "\n".join(overall_log)
+
+                result = run_synthesis()
+
+                if result:
+                    phase_time = time.time() - phase_start
+                    overall_log.append(f"  ✓ Synthesis complete ({format_time(phase_time)})")
+
+                    # Add summary stats
+                    profile = result.get("profile", {})
+                    all_ideas = result.get("all_ideas", [])
+                    overall_log.append(f"  Generated {len(all_ideas)} project ideas")
+                    if profile:
+                        core_themes = profile.get('core_themes', [])
+                        overall_log.append(f"  Core themes identified: {len(core_themes)}")
+                    overall_log.append("")
+                    yield "\n".join(overall_log)
+                else:
+                    overall_log.append("  ✗ Synthesis returned no results")
+                    yield "\n".join(overall_log)
+                    return
+
+            except Exception as e:
+                overall_log.append(f"  ✗ Error: {e}")
+                yield "\n".join(overall_log)
+                return
+
+            # ================================================================
+            # COMPLETION
+            # ================================================================
+            total_time = time.time() - start_time
+            overall_log.append("=" * 60)
+            overall_log.append("✓ PIPELINE COMPLETE")
+            overall_log.append("=" * 60)
+            overall_log.append(f"Total time: {format_time(total_time)}")
+            overall_log.append(f"Completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            overall_log.append("")
+            overall_log.append("Navigate to the Consolidated, Categories, and Synthesis tabs to view results.")
+
+            yield "\n".join(overall_log)
+
         extract_btn.click(fn=run_extraction, inputs=[count_input], outputs=[output_log])
         extract_all_btn.click(fn=run_all_extraction, inputs=[], outputs=[output_log])
         extract_one_btn.click(fn=run_single_extraction, inputs=[conv_id_input], outputs=[output_log])
+        run_full_process_btn.click(fn=run_full_process, inputs=[], outputs=[full_process_log])
 
 
 # =============================================================================
@@ -1312,9 +1556,9 @@ def create_browser_tab():
 
         with gr.Row():
             load_btn = gr.Button("Load Conversations", variant="primary")
-            prev_btn = gr.Button("< Previous")
+            prev_btn = gr.Button("< Previous", variant="secondary")
             page_info = gr.Markdown("Page 1 of 1 (0 conversations)")
-            next_btn = gr.Button("Next >")
+            next_btn = gr.Button("Next >", variant="secondary")
 
         conversations_table = gr.Dataframe(
             headers=["Title", "Date", "Messages", "Extracted", "ID"],
@@ -1481,7 +1725,7 @@ def create_ideas_tab():
             interactive=False
         )
 
-        load_ideas_btn = gr.Button("Load Ideas")
+        load_ideas_btn = gr.Button("Load Ideas", variant="primary")
 
         # Stats
         with gr.Row():
@@ -1550,7 +1794,7 @@ def create_problems_tab():
             interactive=False
         )
 
-        load_problems_btn = gr.Button("Load Problems")
+        load_problems_btn = gr.Button("Load Problems", variant="primary")
 
         def load_problems(search_term):
             problems = aggregate_problems()
@@ -1594,7 +1838,7 @@ def create_tools_tab():
             interactive=False
         )
 
-        load_tools_btn = gr.Button("Load Tools")
+        load_tools_btn = gr.Button("Load Tools", variant="primary")
 
         tools_chart = gr.Plot(label="Top Tools")
 
@@ -1652,7 +1896,7 @@ def create_emotions_tab():
             interactive=False
         )
 
-        load_emotions_btn = gr.Button("Load Emotions")
+        load_emotions_btn = gr.Button("Load Emotions", variant="primary")
 
         def load_emotions(tone_filter_val):
             emotions = aggregate_emotions()
@@ -1710,7 +1954,7 @@ def load_consolidated_data() -> dict | None:
 
 def create_consolidated_tab():
     """Create the consolidated insights tab."""
-    with gr.Tab("Consolidated"):
+    with gr.Tab("Consolidation"):
         gr.Markdown("## Consolidated Insights")
         gr.Markdown("*Deduplicated ideas and problems across all conversations*")
 
@@ -1761,7 +2005,7 @@ def create_consolidated_tab():
 
         with gr.Row():
             refresh_btn = gr.Button("Refresh Consolidated Data", variant="primary")
-            run_consolidation_btn = gr.Button("Run Consolidation")
+            run_consolidation_btn = gr.Button("Run Consolidation", variant="primary")
 
         consolidation_log = gr.Textbox(
             label="Consolidation Log",
@@ -2060,7 +2304,7 @@ def load_categorized_data() -> dict | None:
 
 def create_categories_tab():
     """Create the categorization and scoring tab."""
-    with gr.Tab("Categories"):
+    with gr.Tab("Categorization"):
         gr.Markdown("## Categorized Ideas")
         gr.Markdown("*Scored and prioritized by effort, monetization, utility, passion, and recurrence*")
 
@@ -2090,7 +2334,7 @@ def create_categories_tab():
 
         with gr.Row():
             refresh_btn = gr.Button("Refresh Categories", variant="primary")
-            run_categorization_btn = gr.Button("Run Categorization")
+            run_categorization_btn = gr.Button("Run Categorization", variant="primary")
 
         categorization_log = gr.Textbox(
             label="Categorization Log",
@@ -2325,7 +2569,7 @@ def create_synthesis_tab():
                     interactive=False
                 )
             with gr.Column(scale=1):
-                refresh_btn = gr.Button("Refresh", size="sm")
+                refresh_btn = gr.Button("Refresh", size="sm", variant="secondary")
 
         synthesis_progress = gr.Textbox(
             label="Progress",
@@ -2393,7 +2637,7 @@ def create_synthesis_tab():
                     label="Saved Projects",
                     wrap=True
                 )
-                refresh_saved_btn = gr.Button("Refresh Saved Projects", size="sm")
+                refresh_saved_btn = gr.Button("Refresh Saved Projects", size="sm", variant="secondary")
 
             with gr.Tab("Developed Specs"):
                 gr.Markdown("*Project specifications you've developed*")
@@ -2402,7 +2646,7 @@ def create_synthesis_tab():
                     choices=[],
                     interactive=True
                 )
-                refresh_developed_btn = gr.Button("Refresh List", size="sm")
+                refresh_developed_btn = gr.Button("Refresh List", size="sm", variant="secondary")
                 developed_spec_json = gr.JSON(label="Project Specification")
 
         gr.Markdown("---")
@@ -2811,7 +3055,7 @@ def create_settings_tab():
         status = get_data_status()
         status_display = gr.Markdown(format_status_markdown(status))
 
-        refresh_status_btn = gr.Button("Refresh Status")
+        refresh_status_btn = gr.Button("Refresh Status", variant="secondary")
 
         def refresh_status():
             status = get_data_status()
@@ -2835,10 +3079,12 @@ def create_settings_tab():
         with gr.Row():
             reset_extractions_btn = gr.Button(
                 "Reset Extractions",
+                variant="secondary",
                 interactive=False
             )
             reset_all_btn = gr.Button(
                 "Reset All Processed Data",
+                variant="secondary",
                 interactive=False
             )
 
@@ -2932,6 +3178,158 @@ function updateThemeColor(color) {
 """
 
 # =============================================================================
+# UPLOAD TAB
+# =============================================================================
+
+def create_upload_tab():
+    """Create the JSON upload and auto-parse tab."""
+
+    def handle_upload_and_parse(file_path):
+        """Handle file upload and automatically trigger parsing."""
+        if not file_path:
+            yield "No file uploaded. Drag and drop your conversations.json file above.", None, gr.update(visible=False)
+            return
+
+        # Validate JSON structure
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if not isinstance(data, list):
+                yield "Error: Invalid format. Expected an array of conversations.", None, gr.update(visible=False)
+                return
+            conversation_count = len(data)
+        except json.JSONDecodeError as e:
+            yield f"Error: Invalid JSON file.\n{e}", None, gr.update(visible=False)
+            return
+        except Exception as e:
+            yield f"Error reading file: {e}", None, gr.update(visible=False)
+            return
+
+        # Target path for parser
+        target_path = Path("data/conversations.json")
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Backup existing file if present
+        log_lines = []
+        if target_path.exists():
+            backup_name = f"conversations.json.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            backup_path = target_path.parent / backup_name
+            try:
+                shutil.copy2(target_path, backup_path)
+                log_lines.append(f"Backed up existing file to {backup_name}")
+            except Exception as e:
+                log_lines.append(f"Warning: Could not create backup: {e}")
+
+        # Copy uploaded file to target location
+        try:
+            shutil.copy2(file_path, target_path)
+            log_lines.append(f"Uploaded file with {conversation_count:,} conversations")
+            log_lines.append("Starting parser...")
+            log_lines.append("")
+            yield "\n".join(log_lines), None, gr.update(visible=False)
+        except Exception as e:
+            yield f"Error copying file: {e}", None, gr.update(visible=False)
+            return
+
+        # Execute parser as subprocess
+        try:
+            process = subprocess.Popen(
+                ["python3", "parser.py"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=Path(__file__).parent,
+                text=True,
+                bufsize=1
+            )
+
+            # Stream output in real-time
+            while True:
+                output = process.stdout.readline()
+                if output == '' and process.poll() is not None:
+                    break
+                if output:
+                    output = output.strip()
+                    log_lines.append(output)
+                    yield "\n".join(log_lines), None, gr.update(visible=False)
+
+            # Get final return code
+            returncode = process.poll()
+            stderr = process.stderr.read()
+
+            if returncode == 0:
+                # Parse successful - load manifest
+                manifest_path = Path("data/parsed/_manifest.json")
+                if manifest_path.exists():
+                    with open(manifest_path, 'r') as f:
+                        manifest = json.load(f)
+
+                    stats = {
+                        "total_conversations": manifest.get("total_conversations"),
+                        "parsed": manifest.get("parsed"),
+                        "skipped_trivial": manifest.get("skipped_trivial"),
+                        "skipped_malformed": manifest.get("skipped_malformed"),
+                        "date_range": manifest.get("date_range")
+                    }
+
+                    log_lines.append("")
+                    log_lines.append(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Parsing complete!")
+                    log_lines.append("")
+                    log_lines.append("You can now go to the Extraction tab to extract insights from your conversations.")
+                    yield "\n".join(log_lines), stats, gr.update(visible=True)
+                else:
+                    log_lines.append("\nWarning: Manifest file not found.")
+                    yield "\n".join(log_lines), None, gr.update(visible=False)
+            else:
+                log_lines.append(f"\nError: Parser failed with code {returncode}")
+                if stderr:
+                    log_lines.append(f"Error details:\n{stderr}")
+                yield "\n".join(log_lines), None, gr.update(visible=False)
+
+        except Exception as e:
+            log_lines.append(f"\nError running parser: {e}")
+            yield "\n".join(log_lines), None, gr.update(visible=False)
+
+    with gr.Tab("Upload"):
+        gr.Markdown("## Upload ChatGPT Export")
+        gr.Markdown("""
+Upload your ChatGPT conversation export file to get started.
+
+**How to export from ChatGPT:**
+1. Go to ChatGPT Settings → Data Controls → Export data
+2. Wait for the email with your download link
+3. Download and extract the ZIP file
+4. Drag the `conversations.json` file below
+""")
+
+        file_upload = gr.File(
+            label="Drop your conversations.json file here",
+            file_types=[".json"],
+            file_count="single",
+            type="filepath"
+        )
+
+        parse_status = gr.Textbox(
+            label="Parser Status",
+            value="Upload a JSON file to begin...",
+            lines=15,
+            max_lines=25,
+            interactive=False
+        )
+
+        stats_display = gr.JSON(
+            label="Parse Statistics",
+            visible=False
+        )
+
+        # Auto-trigger parse on file upload
+        file_upload.upload(
+            fn=handle_upload_and_parse,
+            inputs=[file_upload],
+            outputs=[parse_status, stats_display, stats_display]
+        )
+
+
+# =============================================================================
 # MAIN APP
 # =============================================================================
 
@@ -2953,25 +3351,27 @@ def create_app():
 
         gr.Markdown("# Resurface")
 
-        dashboard_load_fn, dashboard_outputs = create_dashboard_tab()
-        create_extraction_tab()
-        create_browser_tab()
-        create_ideas_tab()
-        create_problems_tab()
-        create_tools_tab()
-        create_emotions_tab()
+        with gr.Tabs(selected="dashboard"):
+            # Settings tab (first for easy access)
+            create_settings_tab()
 
-        # Consolidated tab (Phase 3)
-        create_consolidated_tab()
+            dashboard_load_fn, dashboard_outputs = create_dashboard_tab()
+            create_upload_tab()
+            create_extraction_tab()
+            create_browser_tab()
+            create_ideas_tab()
+            create_problems_tab()
+            create_tools_tab()
+            create_emotions_tab()
 
-        # Categories tab (Phase 4)
-        create_categories_tab()
+            # Consolidation tab (Phase 3)
+            create_consolidated_tab()
 
-        # Synthesis tab (Phase 5)
-        create_synthesis_tab()
+            # Categorization tab (Phase 4)
+            create_categories_tab()
 
-        # Settings tab (last)
-        create_settings_tab()
+            # Synthesis tab (Phase 5)
+            create_synthesis_tab()
 
         # Auto-load dashboard on start
         app.load(fn=dashboard_load_fn, outputs=dashboard_outputs)

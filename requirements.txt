@@ -1,0 +1,16 @@
+# Core dependencies
+gradio>=5.0.0
+pandas>=2.0.0
+plotly>=5.0.0
+numpy>=1.24.0
+pillow>=10.0.0
+
+# LLM API clients (install the one you need)
+openai>=1.0.0
+anthropic>=0.18.0
+
+# HTTP client
+httpx>=0.24.0
+
+# Audio processing (optional, for voice features)
+pydub>=0.25.0
