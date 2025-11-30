@@ -65,40 +65,18 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure your API key
-
-Either set an environment variable:
-```bash
-export OPENAI_API_KEY="your-key"
-# or
-export ANTHROPIC_API_KEY="your-key"
-```
-
-Or copy `config.example.json` to `config.json` and add your key there.
-
-## Usage
-
-### 1. Export your ChatGPT data
-
-Go to ChatGPT Settings > Data Controls > Export data. Place `conversations.json` in the `data/` directory.
-
-### 2. Parse conversations
-
-```bash
-python parser.py
-```
-
-This creates individual JSON files in `data/parsed/` for conversations with 4+ turns.
-
 ### 3. Run the UI
 
 ```bash
 python ui.py
 ```
 
-Open the displayed URL to access the web interface.
+Open the displayed URL to access the web interface. From there you can:
+- Upload your ChatGPT export (Settings > Data Controls > Export data from ChatGPT)
+- Configure your API key (OpenAI or Anthropic)
+- Parse, extract, and analyze your conversations
 
-### 4. Processing Workflow
+## Processing Workflow
 
 The full analysis pipeline:
 
