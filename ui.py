@@ -3391,26 +3391,18 @@ def create_app():
         gr.Markdown("# Resurface")
 
         with gr.Tabs(selected="dashboard"):
-            # Settings tab (first for easy access)
+            # Create tabs in display order (Dashboard remains default startup via selected=)
             create_settings_tab()
-
-            # Create tabs and capture references for auto-refresh
-            dashboard_tab, dashboard_load_fn, dashboard_outputs = create_dashboard_tab()
             create_upload_tab()
-            create_extraction_tab()
             browser_tab, browser_load_fn, browser_outputs = create_browser_tab()
+            create_extraction_tab()
+            dashboard_tab, dashboard_load_fn, dashboard_outputs = create_dashboard_tab()
             ideas_tab, ideas_load_fn, ideas_outputs = create_ideas_tab()
             problems_tab, problems_load_fn, problems_outputs = create_problems_tab()
             tools_tab, tools_load_fn, tools_outputs = create_tools_tab()
             emotions_tab, emotions_load_fn, emotions_outputs = create_emotions_tab()
-
-            # Consolidation tab (Phase 3)
             consolidated_tab, consolidated_load_fn, consolidated_outputs = create_consolidated_tab()
-
-            # Categorization tab (Phase 4)
             categories_tab, categories_load_fn, categories_outputs = create_categories_tab()
-
-            # Synthesis tab (Phase 5)
             synthesis_tab, synthesis_load_fn, synthesis_outputs = create_synthesis_tab()
 
         # Auto-load dashboard on start
