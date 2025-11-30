@@ -1060,7 +1060,7 @@ def aggregate_emotions() -> dict:
 
 def create_dashboard_tab():
     """Create the dashboard tab."""
-    with gr.Tab("Dashboard", id="dashboard"):
+    with gr.Tab("Dashboard", id="dashboard") as tab:
         with gr.Row():
             total_box = gr.Number(label="Total Conversations", interactive=False)
             extracted_box = gr.Number(label="Extracted", interactive=False)
@@ -1112,7 +1112,7 @@ def create_dashboard_tab():
             ]
         )
 
-    return (refresh_dashboard, [
+    return (tab, refresh_dashboard, [
         total_box, extracted_box, remaining_box, errors_box,
         progress_bar, ideas_count, problems_count, tools_count
     ])
@@ -1542,7 +1542,7 @@ def create_browser_tab():
     """Create the conversation browser tab."""
     PAGE_SIZE = 100
 
-    with gr.Tab("Conversations"):
+    with gr.Tab("Conversations") as tab:
         gr.Markdown("## Conversation Browser")
 
         with gr.Row():
@@ -1701,6 +1701,14 @@ def create_browser_tab():
             outputs=[conv_id_display, messages_display, extraction_display]
         )
 
+    # Return tab, load function, inputs, and outputs for auto-refresh
+    def load_conversations_default():
+        return load_conversations("", False, "Oldest first")
+
+    return (tab, load_conversations_default, [
+        conversations_table, current_page, total_pages, filtered_data, page_info
+    ])
+
 
 # =============================================================================
 # PROJECT IDEAS TAB
@@ -1708,7 +1716,7 @@ def create_browser_tab():
 
 def create_ideas_tab():
     """Create the project ideas tab."""
-    with gr.Tab("Ideas"):
+    with gr.Tab("Ideas") as tab:
         gr.Markdown("## Project Ideas")
 
         with gr.Row():
@@ -1776,6 +1784,11 @@ def create_ideas_tab():
             outputs=[ideas_table, ideas_chart]
         )
 
+    def load_ideas_default():
+        return load_ideas("All", "")
+
+    return (tab, load_ideas_default, [ideas_table, ideas_chart])
+
 
 # =============================================================================
 # PROBLEMS TAB
@@ -1783,7 +1796,7 @@ def create_ideas_tab():
 
 def create_problems_tab():
     """Create the problems tab."""
-    with gr.Tab("Problems"):
+    with gr.Tab("Problems") as tab:
         gr.Markdown("## Problems & Pain Points")
 
         search_problems = gr.Textbox(label="Search", placeholder="Search problems...")
@@ -1822,6 +1835,11 @@ def create_problems_tab():
             outputs=[problems_table]
         )
 
+    def load_problems_default():
+        return load_problems("")
+
+    return (tab, load_problems_default, [problems_table])
+
 
 # =============================================================================
 # TOOLS TAB
@@ -1829,7 +1847,7 @@ def create_problems_tab():
 
 def create_tools_tab():
     """Create the tools explorer tab."""
-    with gr.Tab("Tools"):
+    with gr.Tab("Tools") as tab:
         gr.Markdown("## Tools & Technologies")
 
         tools_table = gr.Dataframe(
@@ -1872,6 +1890,8 @@ def create_tools_tab():
             outputs=[tools_table, tools_chart]
         )
 
+    return (tab, load_tools, [tools_table, tools_chart])
+
 
 # =============================================================================
 # EMOTIONS TAB
@@ -1879,7 +1899,7 @@ def create_tools_tab():
 
 def create_emotions_tab():
     """Create the emotions/tone tab."""
-    with gr.Tab("Emotions"):
+    with gr.Tab("Emotions") as tab:
         gr.Markdown("## Emotional Signals")
 
         emotions_chart = gr.Plot(label="Tone Distribution")
@@ -1939,6 +1959,11 @@ def create_emotions_tab():
             outputs=[emotions_chart, emotions_table]
         )
 
+    def load_emotions_default():
+        return load_emotions("All")
+
+    return (tab, load_emotions_default, [emotions_chart, emotions_table])
+
 
 # =============================================================================
 # CONSOLIDATED TAB
@@ -1954,7 +1979,7 @@ def load_consolidated_data() -> dict | None:
 
 def create_consolidated_tab():
     """Create the consolidated insights tab."""
-    with gr.Tab("Consolidation"):
+    with gr.Tab("Consolidation") as tab:
         gr.Markdown("## Consolidated Insights")
         gr.Markdown("*Deduplicated ideas and problems across all conversations*")
 
@@ -2278,7 +2303,7 @@ def create_consolidated_tab():
             outputs=[problem_detail]
         )
 
-    return (load_consolidated, [
+    return (tab, load_consolidated, [
         total_ideas, total_problems, total_workflows, source_count,
         ideas_table, ideas_data_store,
         problems_table, problems_data_store,
@@ -2304,7 +2329,7 @@ def load_categorized_data() -> dict | None:
 
 def create_categories_tab():
     """Create the categorization and scoring tab."""
-    with gr.Tab("Categorization"):
+    with gr.Tab("Categorization") as tab:
         gr.Markdown("## Categorized Ideas")
         gr.Markdown("*Scored and prioritized by effort, monetization, utility, passion, and recurrence*")
 
@@ -2541,6 +2566,14 @@ def create_categories_tab():
             outputs=[idea_detail]
         )
 
+    def load_categories_default():
+        return load_categories("All")
+
+    return (tab, load_categories_default, [
+        quick_wins_count, validate_count, revive_count, someday_count,
+        categories_table, ideas_data_store, quick_wins_table
+    ])
+
 
 # =============================================================================
 # SYNTHESIS TAB (Phase 5)
@@ -2554,7 +2587,7 @@ def create_synthesis_tab():
         load_saved_ideas, get_developed_ideas, get_developed_spec
     )
 
-    with gr.Tab("Synthesis"):
+    with gr.Tab("Synthesis") as tab:
         gr.Markdown("## Creative Synthesis Engine")
         gr.Markdown("Generate novel project ideas based on patterns in your conversation history.")
 
@@ -2929,6 +2962,12 @@ def create_synthesis_tab():
             inputs=[developed_list_dropdown],
             outputs=[developed_spec_json]
         )
+
+    return (tab, refresh_display, [
+        synthesis_status, synthesis_progress, profile_summary, profile_json,
+        intersection_df, solution_df, profile_df, capsule_df, all_ideas_df,
+        idea_dropdown
+    ])
 
 
 # =============================================================================
@@ -3355,26 +3394,38 @@ def create_app():
             # Settings tab (first for easy access)
             create_settings_tab()
 
-            dashboard_load_fn, dashboard_outputs = create_dashboard_tab()
+            # Create tabs and capture references for auto-refresh
+            dashboard_tab, dashboard_load_fn, dashboard_outputs = create_dashboard_tab()
             create_upload_tab()
             create_extraction_tab()
-            create_browser_tab()
-            create_ideas_tab()
-            create_problems_tab()
-            create_tools_tab()
-            create_emotions_tab()
+            browser_tab, browser_load_fn, browser_outputs = create_browser_tab()
+            ideas_tab, ideas_load_fn, ideas_outputs = create_ideas_tab()
+            problems_tab, problems_load_fn, problems_outputs = create_problems_tab()
+            tools_tab, tools_load_fn, tools_outputs = create_tools_tab()
+            emotions_tab, emotions_load_fn, emotions_outputs = create_emotions_tab()
 
             # Consolidation tab (Phase 3)
-            create_consolidated_tab()
+            consolidated_tab, consolidated_load_fn, consolidated_outputs = create_consolidated_tab()
 
             # Categorization tab (Phase 4)
-            create_categories_tab()
+            categories_tab, categories_load_fn, categories_outputs = create_categories_tab()
 
             # Synthesis tab (Phase 5)
-            create_synthesis_tab()
+            synthesis_tab, synthesis_load_fn, synthesis_outputs = create_synthesis_tab()
 
         # Auto-load dashboard on start
         app.load(fn=dashboard_load_fn, outputs=dashboard_outputs)
+
+        # Auto-refresh data when tabs are selected
+        dashboard_tab.select(fn=dashboard_load_fn, outputs=dashboard_outputs)
+        browser_tab.select(fn=browser_load_fn, outputs=browser_outputs)
+        ideas_tab.select(fn=ideas_load_fn, outputs=ideas_outputs)
+        problems_tab.select(fn=problems_load_fn, outputs=problems_outputs)
+        tools_tab.select(fn=tools_load_fn, outputs=tools_outputs)
+        emotions_tab.select(fn=emotions_load_fn, outputs=emotions_outputs)
+        consolidated_tab.select(fn=consolidated_load_fn, outputs=consolidated_outputs)
+        categories_tab.select(fn=categories_load_fn, outputs=categories_outputs)
+        synthesis_tab.select(fn=synthesis_load_fn, outputs=synthesis_outputs)
 
     return app
 
