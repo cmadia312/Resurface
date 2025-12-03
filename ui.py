@@ -3221,12 +3221,20 @@ function updateThemeColor(color) {
 # =============================================================================
 
 def create_upload_tab():
-    """Create the JSON upload and auto-parse tab."""
+    """Create the JSON upload and auto-parse tab with support for multiple formats."""
 
-    def handle_upload_and_parse(file_path):
-        """Handle file upload and automatically trigger parsing."""
+    def handle_upload_and_parse(file_path, export_format: str):
+        """Handle file upload and automatically trigger parsing.
+
+        Args:
+            file_path: Path to uploaded file
+            export_format: 'chatgpt' or 'claude'
+        """
+        format_names = {'chatgpt': 'ChatGPT', 'claude': 'Claude'}
+        format_name = format_names.get(export_format, export_format)
+
         if not file_path:
-            yield "No file uploaded. Drag and drop your conversations.json file above.", None, gr.update(visible=False)
+            yield f"No file uploaded. Drag and drop your {format_name} conversations.json file above.", None, gr.update(visible=False)
             return
 
         # Validate JSON structure
@@ -3244,14 +3252,14 @@ def create_upload_tab():
             yield f"Error reading file: {e}", None, gr.update(visible=False)
             return
 
-        # Target path for parser
-        target_path = Path("data/conversations.json")
+        # Target path for parser (format-specific)
+        target_path = Path(f"data/{export_format}_conversations.json")
         target_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Backup existing file if present
         log_lines = []
         if target_path.exists():
-            backup_name = f"conversations.json.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            backup_name = f"{export_format}_conversations.json.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             backup_path = target_path.parent / backup_name
             try:
                 shutil.copy2(target_path, backup_path)
@@ -3262,7 +3270,7 @@ def create_upload_tab():
         # Copy uploaded file to target location
         try:
             shutil.copy2(file_path, target_path)
-            log_lines.append(f"Uploaded file with {conversation_count:,} conversations")
+            log_lines.append(f"Uploaded {format_name} file with {conversation_count:,} conversations")
             log_lines.append("Starting parser...")
             log_lines.append("")
             yield "\n".join(log_lines), None, gr.update(visible=False)
@@ -3270,10 +3278,10 @@ def create_upload_tab():
             yield f"Error copying file: {e}", None, gr.update(visible=False)
             return
 
-        # Execute parser as subprocess
+        # Execute parser as subprocess with format argument
         try:
             process = subprocess.Popen(
-                ["python3", "parser.py"],
+                ["python3", "parser.py", "--format", export_format, "--input", str(target_path)],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=Path(__file__).parent,
@@ -3328,44 +3336,94 @@ def create_upload_tab():
             log_lines.append(f"\nError running parser: {e}")
             yield "\n".join(log_lines), None, gr.update(visible=False)
 
-    with gr.Tab("Upload"):
-        gr.Markdown("## Upload ChatGPT Export")
-        gr.Markdown("""
-Upload your ChatGPT conversation export file to get started.
+    def handle_chatgpt_upload(file_path):
+        """Handler for ChatGPT uploads."""
+        yield from handle_upload_and_parse(file_path, 'chatgpt')
 
-**How to export from ChatGPT:**
-1. Go to ChatGPT Settings → Data Controls → Export data
-2. Wait for the email with your download link
-3. Download and extract the ZIP file
-4. Drag the `conversations.json` file below
+    def handle_claude_upload(file_path):
+        """Handler for Claude uploads."""
+        yield from handle_upload_and_parse(file_path, 'claude')
+
+    with gr.Tab("Upload"):
+        gr.Markdown("## Upload Conversation Export")
+        gr.Markdown("""
+Upload your conversation export file to get started. Select the tab matching your AI assistant.
+Both ChatGPT and Claude exports are named `conversations.json` - use the appropriate tab for your source.
 """)
 
-        file_upload = gr.File(
-            label="Drop your conversations.json file here",
-            file_types=[".json"],
-            file_count="single",
-            type="filepath"
-        )
+        with gr.Tabs():
+            # ChatGPT Upload Tab
+            with gr.Tab("ChatGPT"):
+                gr.Markdown("""
+**How to export from ChatGPT:**
+1. Go to [chat.openai.com](https://chat.openai.com)
+2. Settings → Data Controls → Export data
+3. Wait for the email with your download link
+4. Download and extract the ZIP file
+5. Drag the `conversations.json` file below
+""")
+                chatgpt_upload = gr.File(
+                    label="Drop your ChatGPT conversations.json here",
+                    file_types=[".json"],
+                    file_count="single",
+                    type="filepath"
+                )
 
-        parse_status = gr.Textbox(
-            label="Parser Status",
-            value="Upload a JSON file to begin...",
-            lines=15,
-            max_lines=25,
-            interactive=False
-        )
+                chatgpt_status = gr.Textbox(
+                    label="Parser Status",
+                    value="Upload a ChatGPT export to begin...",
+                    lines=15,
+                    max_lines=25,
+                    interactive=False
+                )
 
-        stats_display = gr.JSON(
-            label="Parse Statistics",
-            visible=False
-        )
+                chatgpt_stats = gr.JSON(
+                    label="Parse Statistics",
+                    visible=False
+                )
 
-        # Auto-trigger parse on file upload
-        file_upload.upload(
-            fn=handle_upload_and_parse,
-            inputs=[file_upload],
-            outputs=[parse_status, stats_display, stats_display]
-        )
+                chatgpt_upload.upload(
+                    fn=handle_chatgpt_upload,
+                    inputs=[chatgpt_upload],
+                    outputs=[chatgpt_status, chatgpt_stats, chatgpt_stats]
+                )
+
+            # Claude Upload Tab
+            with gr.Tab("Claude"):
+                gr.Markdown("""
+**How to export from Claude:**
+1. Go to [claude.ai](https://claude.ai)
+2. Click your profile icon → Settings
+3. Account → Export Data
+4. Wait for the email with your download link
+5. Download and extract the ZIP file
+6. Drag the `conversations.json` file below
+""")
+                claude_upload = gr.File(
+                    label="Drop your Claude conversations.json here",
+                    file_types=[".json"],
+                    file_count="single",
+                    type="filepath"
+                )
+
+                claude_status = gr.Textbox(
+                    label="Parser Status",
+                    value="Upload a Claude export to begin...",
+                    lines=15,
+                    max_lines=25,
+                    interactive=False
+                )
+
+                claude_stats = gr.JSON(
+                    label="Parse Statistics",
+                    visible=False
+                )
+
+                claude_upload.upload(
+                    fn=handle_claude_upload,
+                    inputs=[claude_upload],
+                    outputs=[claude_status, claude_stats, claude_stats]
+                )
 
 
 # =============================================================================

@@ -89,25 +89,32 @@ def reset_extractions() -> dict:
 
 def reset_all_processed() -> dict:
     """
-    Delete all processed data: extractions, consolidated, categorized, AND synthesized.
+    Delete all processed data: parsed, extractions, consolidated, categorized, AND synthesized.
 
     Preserves:
-        - data/parsed/ (source conversations)
+        - data/conversations.json (original export)
+        - data/chatgpt_conversations.json (uploaded ChatGPT export)
+        - data/claude_conversations.json (uploaded Claude export)
         - config.json (API settings)
 
     Returns dict with:
-        - extractions: Number of extraction files deleted
+        - parsed: True if parsed directory was deleted
+        - extractions: True if extractions directory was deleted
         - consolidated: True if consolidated.json was deleted
         - categorized: True if categorized.json was deleted
         - synthesized: True if synthesized directory was deleted
     """
-    result = {"extractions": 0, "consolidated": False, "categorized": False, "synthesized": False}
+    result = {"parsed": False, "extractions": False, "consolidated": False, "categorized": False, "synthesized": False}
 
-    # Delete all extraction files
+    # Delete parsed directory
+    if PARSED_DIR.exists():
+        shutil.rmtree(PARSED_DIR)
+        result["parsed"] = True
+
+    # Delete extractions directory
     if EXTRACTIONS_DIR.exists():
-        for f in EXTRACTIONS_DIR.glob("*.json"):
-            f.unlink()
-            result["extractions"] += 1
+        shutil.rmtree(EXTRACTIONS_DIR)
+        result["extractions"] = True
 
     # Delete consolidated.json
     consolidated_path = CONSOLIDATED_DIR / "consolidated.json"
@@ -126,9 +133,9 @@ def reset_all_processed() -> dict:
         shutil.rmtree(SYNTHESIZED_DIR)
         result["synthesized"] = True
 
-    # Delete synthesis status file
-    if SYNTHESIS_STATUS_FILE.exists():
-        SYNTHESIS_STATUS_FILE.unlink()
+    # Delete all status files
+    for status_file in DATA_DIR.glob("*_status.json"):
+        status_file.unlink()
 
     return result
 

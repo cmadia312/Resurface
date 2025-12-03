@@ -1,15 +1,15 @@
 # Resurface
 
-A tool for extracting actionable insights from your ChatGPT conversation history using LLM analysis.
+A tool for extracting actionable insights from your ChatGPT and Claude conversation history using LLM analysis.
 
 ## Overview
 
-Resurface parses ChatGPT export files, extracts meaningful patterns using LLMs (Anthropic Claude or OpenAI GPT), and presents consolidated insights through a web interface. It helps you discover recurring themes, project ideas, problems you're trying to solve, and emotional patterns across your conversations.
+Resurface parses conversation exports from ChatGPT and Claude.ai, extracts meaningful patterns using LLMs (Anthropic Claude or OpenAI GPT), and presents consolidated insights through a web interface. It helps you discover recurring themes, project ideas, problems you're trying to solve, and emotional patterns across your conversations.
 
 ## Features
 
 ### Core Analysis Pipeline
-- **Parse** ChatGPT JSON exports into clean, linearized conversation files
+- **Parse** ChatGPT and Claude JSON exports into clean, normalized conversation files
 - **Extract** insights using LLM analysis:
   - Project ideas with motivation and detail level
   - Problems and pain points (implicit project seeds)
@@ -42,7 +42,7 @@ Resurface parses ChatGPT export files, extracts meaningful patterns using LLMs (
 - **Categories**: See ideas organized by type (Quick Win, Validate, Revive, Someday)
 - **Synthesis**: Generate and evaluate AI-created project ideas
 - **Settings**: Configure API provider, model, theme, and rate limiting
-- **Upload**: Import new ChatGPT conversation exports
+- **Upload**: Import conversation exports from ChatGPT or Claude (with separate upload tabs for each)
 
 ### Additional Capabilities
 - Resumable extraction with progress tracking
@@ -72,9 +72,11 @@ python ui.py
 ```
 
 Open the displayed URL to access the web interface. From there you can:
-- Upload your ChatGPT export (Settings > Data Controls > Export data from ChatGPT)
+- Upload your conversation exports:
+  - **ChatGPT**: Settings > Data Controls > Export data
+  - **Claude**: Profile icon > Settings > Account > Export Data
 - Configure your API key (OpenAI or Anthropic)
-- Parse, extract, and analyze your conversations
+- Parse, extract, and analyze your conversations from both platforms
 
 ## Processing Workflow
 
@@ -84,7 +86,7 @@ The full analysis pipeline:
 Parse → Extract → Consolidate → Categorize → Synthesize
 ```
 
-1. **Parse**: Converts raw ChatGPT export to individual conversation files
+1. **Parse**: Converts raw ChatGPT/Claude exports to individual conversation files
 2. **Extract**: LLM analyzes each conversation for insights
 3. **Consolidate**: Groups similar items across all conversations
 4. **Categorize**: Scores and categorizes project ideas
@@ -120,7 +122,7 @@ Edit `config.json`:
 
 ```
 Resurface/
-├── parser.py              # Parse ChatGPT exports into individual files
+├── parser.py              # Parse ChatGPT/Claude exports into individual files
 ├── extractor.py           # LLM extraction logic and prompts
 ├── runner.py              # Batch extraction orchestration
 ├── consolidate.py         # Merge similar items across conversations
@@ -134,8 +136,9 @@ Resurface/
 ├── requirements.txt       # Python dependencies
 ├── assets/                # UI assets (fonts)
 └── data/
-    ├── conversations.json # ChatGPT export (you provide)
-    ├── parsed/            # Individual conversation files
+    ├── chatgpt_conversations.json  # ChatGPT export (uploaded via UI)
+    ├── claude_conversations.json   # Claude export (uploaded via UI)
+    ├── parsed/            # Individual conversation files (from all sources)
     ├── extractions/       # LLM extraction results
     ├── consolidated/      # Merged insights
     └── synthesized/       # AI-generated ideas and profiles

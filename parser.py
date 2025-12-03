@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
-ChatGPT export parser - extracts and cleans conversations
+Conversation export parser - extracts and cleans conversations
 
-Parses the ChatGPT export JSON format, linearizes the message tree,
-filters content, and outputs individual JSON files per conversation.
+Supports multiple export formats:
+- ChatGPT: Tree-based mapping structure from OpenAI exports
+- Claude: Flat chat_messages array from Anthropic exports
+
+Outputs normalized JSON files per conversation for downstream processing.
 """
+import argparse
 import json
 import sys
 from datetime import datetime, timezone
@@ -206,14 +210,90 @@ def process_conversation(conv: dict) -> tuple[dict | None, str | None]:
     return result, None
 
 
+def process_claude_conversation(conv: dict) -> tuple[dict | None, str | None]:
+    """
+    Process a Claude.ai conversation export.
+    Returns (parsed_conversation, error_message)
+    """
+    conv_id = conv.get('uuid')
+    chat_messages = conv.get('chat_messages', [])
+
+    if not chat_messages:
+        return None, f"No messages in {conv_id}"
+
+    messages = []
+    has_images = False
+
+    for msg in chat_messages:
+        sender = msg.get('sender', '')
+        text = msg.get('text', '').strip()
+
+        # Map Claude roles to normalized roles
+        if sender == 'human':
+            role = 'user'
+        elif sender == 'assistant':
+            role = 'assistant'
+        else:
+            continue  # Skip unknown sender types
+
+        # Check for attachments (images/files)
+        attachments = msg.get('attachments', [])
+        files = msg.get('files', [])
+        if attachments or files:
+            has_images = True
+
+        if text:
+            result_msg = {'role': role, 'content': text}
+            if attachments or files:
+                result_msg['has_image'] = True
+            messages.append(result_msg)
+
+    turn_count = len(messages)
+
+    result = {
+        'id': conv_id,
+        'title': conv.get('name') or 'Untitled',
+        'created': conv.get('created_at'),
+        'updated': conv.get('updated_at'),
+        'model': 'claude',
+        'message_count': len(messages),
+        'turn_count': turn_count,
+        'messages': messages
+    }
+
+    if has_images:
+        result['has_images'] = True
+
+    return result, None
+
+
 def main():
-    input_path = Path('data/conversations.json')
+    # Parse command line arguments
+    arg_parser = argparse.ArgumentParser(
+        description='Parse conversation exports from ChatGPT or Claude'
+    )
+    arg_parser.add_argument(
+        '--format',
+        choices=['chatgpt', 'claude'],
+        default='chatgpt',
+        help='Export format to parse (default: chatgpt)'
+    )
+    arg_parser.add_argument(
+        '--input',
+        default='data/conversations.json',
+        help='Path to input JSON file (default: data/conversations.json)'
+    )
+    args = arg_parser.parse_args()
+
+    input_path = Path(args.input)
     output_dir = Path('data/parsed')
+    export_format = args.format
 
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading {input_path}...")
+    print(f"Format: {export_format}")
     with open(input_path, 'r', encoding='utf-8') as f:
         conversations = json.load(f)
 
@@ -223,10 +303,18 @@ def main():
     manifest_entries = []
 
     for i, conv in enumerate(conversations):
-        conv_id = conv.get('conversation_id') or conv.get('id') or f'unknown_{i}'
+        # Get conversation ID based on format
+        if export_format == 'claude':
+            conv_id = conv.get('uuid') or f'unknown_{i}'
+        else:
+            conv_id = conv.get('conversation_id') or conv.get('id') or f'unknown_{i}'
 
         try:
-            result, error = process_conversation(conv)
+            # Route to appropriate parser
+            if export_format == 'claude':
+                result, error = process_claude_conversation(conv)
+            else:
+                result, error = process_conversation(conv)
 
             if error:
                 stats.skipped_malformed += 1
@@ -247,13 +335,14 @@ def main():
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(result, f, indent=2, ensure_ascii=False)
 
-            # Add to manifest
+            # Add to manifest (include source format for multi-format support)
             manifest_entries.append({
                 'id': conv_id,
                 'title': result['title'],
                 'created': result['created'],
                 'message_count': result['message_count'],
-                'turn_count': result['turn_count']
+                'turn_count': result['turn_count'],
+                'source': export_format
             })
 
             stats.parsed += 1
@@ -267,25 +356,43 @@ def main():
         if (i + 1) % 500 == 0:
             print(f"  Processed {i + 1}/{len(conversations)}...")
 
-    # Calculate date range
-    if stats.dates:
-        stats.dates.sort()
-        date_range = [stats.dates[0], stats.dates[-1]]
+    # Load existing manifest and merge (keep entries from other formats)
+    manifest_path = output_dir / '_manifest.json'
+    existing_entries = []
+    if manifest_path.exists():
+        try:
+            with open(manifest_path, 'r', encoding='utf-8') as f:
+                existing_manifest = json.load(f)
+                # Keep entries from OTHER formats (filter out current format to allow re-parse)
+                existing_entries = [
+                    e for e in existing_manifest.get('conversations', [])
+                    if e.get('source') != export_format
+                ]
+        except (json.JSONDecodeError, KeyError):
+            existing_entries = []
+
+    # Combine entries
+    all_entries = existing_entries + manifest_entries
+
+    # Calculate combined date range from all entries
+    all_dates = [e['created'][:10] for e in all_entries if e.get('created')]
+    if all_dates:
+        all_dates.sort()
+        date_range = [all_dates[0], all_dates[-1]]
     else:
         date_range = None
 
-    # Write manifest
+    # Write merged manifest
     manifest = {
         'processed_at': datetime.now(tz=timezone.utc).isoformat(),
-        'total_conversations': stats.total,
-        'parsed': stats.parsed,
+        'total_conversations': len(all_entries),
+        'parsed': len(all_entries),
         'skipped_trivial': stats.skipped_trivial,
         'skipped_malformed': stats.skipped_malformed,
         'date_range': date_range,
-        'conversations': manifest_entries
+        'conversations': all_entries
     }
 
-    manifest_path = output_dir / '_manifest.json'
     with open(manifest_path, 'w', encoding='utf-8') as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
 
