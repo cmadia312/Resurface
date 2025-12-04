@@ -3220,6 +3220,138 @@ def create_settings_tab():
         )
 
         # =====================================================================
+        # Prompt Customization Section
+        # =====================================================================
+        gr.Markdown("---")
+        gr.Markdown("### Prompt Customization")
+        gr.Markdown("*Customize LLM prompts used throughout the application. Use Reset to Default if you break something.*")
+
+        from prompts import DEFAULT_PROMPTS, get_prompt, get_default_prompt, get_prompt_metadata
+
+        # Build dropdown choices with grouping labels
+        prompt_choices = [
+            ("Extraction", "extraction"),
+            ("Extraction Retry", "extraction_retry"),
+            ("Consolidate Ideas", "consolidate_ideas"),
+            ("Consolidate Problems", "consolidate_problems"),
+            ("Consolidate Workflows", "consolidate_workflows"),
+            ("Idea Scoring", "scoring"),
+            ("Passion Profile", "passion_profile"),
+            ("Intersection Ideas", "intersection_ideas"),
+            ("Solution Ideas", "solution_ideas"),
+            ("Profile-Based Ideas", "profile_ideas"),
+            ("Time Capsule", "time_capsule"),
+            ("Deduplication", "deduplication"),
+            ("Generated Ideas Scoring", "generated_scoring"),
+            ("Project Development", "project_development"),
+        ]
+
+        prompt_dropdown = gr.Dropdown(
+            choices=[c[0] for c in prompt_choices],
+            value="Extraction",
+            label="Select Prompt"
+        )
+
+        # Map display name to key
+        prompt_name_to_key = {c[0]: c[1] for c in prompt_choices}
+
+        # Get initial prompt
+        initial_key = "extraction"
+        initial_config = load_config()
+        initial_template, initial_system = get_prompt(initial_config, initial_key)
+        initial_meta = get_prompt_metadata(initial_key)
+
+        prompt_template_input = gr.Textbox(
+            value=initial_template,
+            label="Template",
+            lines=15,
+            max_lines=30,
+            placeholder="Enter the prompt template..."
+        )
+
+        prompt_variables_display = gr.Markdown(
+            f"**Required variables:** `{', '.join(initial_meta.get('variables', []))}`" if initial_meta.get('variables') else "**No variables required**"
+        )
+
+        prompt_system_input = gr.Textbox(
+            value=initial_system,
+            label="System Prompt",
+            lines=2,
+            placeholder="Enter the system prompt (optional)..."
+        )
+
+        with gr.Row():
+            reset_prompt_btn = gr.Button("Reset to Default", variant="secondary")
+            save_prompt_btn = gr.Button("Save Prompt", variant="primary")
+
+        prompt_result = gr.Markdown("")
+
+        # Handler for dropdown change - load the selected prompt
+        def on_prompt_select(prompt_name):
+            prompt_key = prompt_name_to_key.get(prompt_name, "extraction")
+            current_config = load_config()
+            template, system_prompt = get_prompt(current_config, prompt_key)
+            meta = get_prompt_metadata(prompt_key)
+            variables_text = f"**Required variables:** `{', '.join(meta.get('variables', []))}`" if meta.get('variables') else "**No variables required**"
+            return template, system_prompt, variables_text
+
+        prompt_dropdown.change(
+            fn=on_prompt_select,
+            inputs=[prompt_dropdown],
+            outputs=[prompt_template_input, prompt_system_input, prompt_variables_display]
+        )
+
+        # Handler for Reset to Default
+        def reset_prompt_to_default(prompt_name):
+            prompt_key = prompt_name_to_key.get(prompt_name, "extraction")
+            try:
+                # Remove custom prompt from config
+                current_config = load_config()
+                if "prompts" in current_config and prompt_key in current_config["prompts"]:
+                    del current_config["prompts"][prompt_key]
+                    save_config(current_config)
+
+                # Get default prompt
+                template, system_prompt = get_default_prompt(prompt_key)
+                meta = get_prompt_metadata(prompt_key)
+                variables_text = f"**Required variables:** `{', '.join(meta.get('variables', []))}`" if meta.get('variables') else "**No variables required**"
+                return template, system_prompt, variables_text, "Prompt reset to default."
+            except Exception as e:
+                return gr.update(), gr.update(), gr.update(), f"Error resetting prompt: {e}"
+
+        reset_prompt_btn.click(
+            fn=reset_prompt_to_default,
+            inputs=[prompt_dropdown],
+            outputs=[prompt_template_input, prompt_system_input, prompt_variables_display, prompt_result]
+        )
+
+        # Handler for Save Prompt
+        def save_custom_prompt(prompt_name, template, system_prompt):
+            prompt_key = prompt_name_to_key.get(prompt_name, "extraction")
+            try:
+                current_config = load_config()
+
+                # Initialize prompts dict if needed
+                if "prompts" not in current_config:
+                    current_config["prompts"] = {}
+
+                # Save custom prompt
+                current_config["prompts"][prompt_key] = {
+                    "template": template,
+                    "system_prompt": system_prompt
+                }
+                save_config(current_config)
+                return "Prompt saved successfully."
+            except Exception as e:
+                return f"Error saving prompt: {e}"
+
+        save_prompt_btn.click(
+            fn=save_custom_prompt,
+            inputs=[prompt_dropdown, prompt_template_input, prompt_system_input],
+            outputs=[prompt_result]
+        )
+
+        # =====================================================================
         # Data Management Section
         # =====================================================================
         gr.Markdown("---")

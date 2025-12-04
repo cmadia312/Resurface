@@ -26,6 +26,7 @@ from schemas import (
     SolutionIdea,
     ProfileBasedIdea,
 )
+from prompts import get_prompt
 
 # Paths
 CONSOLIDATED_DIR = Path("data/consolidated")
@@ -217,45 +218,16 @@ def build_passion_profile(consolidated: dict, categorized: dict, config: dict) -
     # Prepare truncated data for the LLM to avoid context length issues
     profile_data = prepare_profile_data_for_llm(consolidated, categorized)
 
-    schema = """{
-  "core_themes": [{"theme": "string", "strength": 1-5, "evidence": "string"}],
-  "tool_expertise": [{"tool": "string", "mentions": number, "contexts": ["string"]}],
-  "recurring_problems": [{"problem": "string", "frequency": number, "impact": "string"}],
-  "emotional_patterns": {
-    "excited_about": ["string"],
-    "frustrated_by": ["string"],
-    "curious_about": ["string"]
-  },
-  "underlying_questions": ["string"],
-  "high_passion_ideas": [{"name": "string", "passion_score": 1-5}],
-  "summary": "2-3 sentence description"
-}"""
+    # Get prompt from config (with fallback to defaults)
+    prompt_template, system_prompt = get_prompt(config, "passion_profile")
 
     total = profile_data.get("total_counts", {})
-    prompt = f"""Analyze this user's conversation history data and build a passion profile.
-
-DATA PROVIDED (sampled from {total.get('ideas', 0)} ideas, {total.get('problems', 0)} problems, {total.get('workflows', 0)} workflows):
-- Top Ideas (highest scoring project ideas with categories and passion/recurrence scores)
-- Top Problems (pain points)
-- Top Workflows (automations and processes)
-- Tool Frequency (top technologies mentioned)
-- Emotional Samples (conversation tones over time)
-
-{json.dumps(profile_data, indent=2)}
-
-Synthesize this into a passion profile with:
-1. core_themes: Top 5-10 recurring themes/interests (with evidence from the data)
-2. tool_expertise: Tools they use/explore most (with contexts)
-3. recurring_problems: Pain points that keep appearing
-4. emotional_patterns: What excites them vs frustrates them vs makes them curious
-5. underlying_questions: Deeper uncertainties they keep exploring
-6. high_passion_ideas: Ideas with highest passion scores
-7. summary: 2-3 sentence description of this person's interests/focus
-
-Return JSON matching this schema:
-{schema}"""
-
-    system_prompt = "You are an expert at analyzing patterns in human interests and synthesizing insights. Return only valid JSON."
+    prompt = prompt_template.format(
+        total_ideas=total.get('ideas', 0),
+        total_problems=total.get('problems', 0),
+        total_workflows=total.get('workflows', 0),
+        profile_data=json.dumps(profile_data, indent=2)
+    )
 
     response = call_llm(prompt, config, system_prompt)
     profile = parse_json_response(response)
@@ -320,31 +292,14 @@ def generate_intersection_ideas(themes: list[str], tools: list[str],
                                  profile: dict, config: dict) -> list[dict]:
     """Strategy A: Generate ideas at intersection of 2-3 themes."""
 
-    prompt = f"""You are helping someone discover project ideas at the intersection of their passions.
+    # Get prompt from config (with fallback to defaults)
+    prompt_template, system_prompt = get_prompt(config, "intersection_ideas")
 
-USER PROFILE SUMMARY:
-{profile.get('summary', 'A developer exploring various interests.')}
-
-THEIR TOP THEMES:
-{json.dumps(themes, indent=2)}
-
-TOOLS THEY KNOW:
-{json.dumps(tools, indent=2)}
-
-Generate 5 NOVEL project ideas that creatively combine 2-3 of these themes.
-These should be ideas the user has NOT explicitly mentioned - synthesize something new.
-
-For each idea provide:
-- name: Catchy, memorable project name
-- description: 2-3 sentences explaining what it does
-- themes_combined: Which themes this intersects
-- tools_suggested: Relevant tools from their expertise
-- why_exciting: Why this person specifically would love building this
-
-Return JSON array:
-[{{"name": "...", "description": "...", "themes_combined": [...], "tools_suggested": [...], "why_exciting": "..."}}]"""
-
-    system_prompt = "You are a creative project ideation expert. Generate novel, exciting project ideas. Return only valid JSON array."
+    prompt = prompt_template.format(
+        profile_summary=profile.get('summary', 'A developer exploring various interests.'),
+        themes=json.dumps(themes, indent=2),
+        tools=json.dumps(tools, indent=2)
+    )
 
     # Use schema for Ollama structured output
     schema = make_array_schema(IntersectionIdea) if config.get('api_provider') == 'ollama' else None
@@ -367,31 +322,14 @@ def generate_solution_ideas(problems: list[dict], tools: list[str],
                             profile: dict, config: dict) -> list[dict]:
     """Strategy B: Generate solutions to recurring problems using known tools."""
 
-    prompt = f"""You are helping someone solve their recurring problems using tools they already know.
+    # Get prompt from config (with fallback to defaults)
+    prompt_template, system_prompt = get_prompt(config, "solution_ideas")
 
-USER'S RECURRING PROBLEMS:
-{json.dumps(problems, indent=2)}
-
-TOOLS THEY'RE FAMILIAR WITH:
-{json.dumps(tools, indent=2)}
-
-USER PROFILE SUMMARY:
-{profile.get('summary', 'A developer exploring various interests.')}
-
-Generate 5 practical project ideas that solve these problems using their toolkit.
-Focus on ACTIONABLE solutions they could realistically build.
-
-For each idea provide:
-- name: Clear, descriptive project name
-- description: What it does and how it solves the problem
-- problem_addressed: Which problem(s) this solves
-- tools_used: Which of their known tools this uses
-- why_practical: Why this is achievable for them
-
-Return JSON array:
-[{{"name": "...", "description": "...", "problem_addressed": "...", "tools_used": [...], "why_practical": "..."}}]"""
-
-    system_prompt = "You are a practical problem-solving expert. Generate actionable, buildable solutions. Return only valid JSON array."
+    prompt = prompt_template.format(
+        problems=json.dumps(problems, indent=2),
+        tools=json.dumps(tools, indent=2),
+        profile_summary=profile.get('summary', 'A developer exploring various interests.')
+    )
 
     # Use schema for Ollama structured output
     schema = make_array_schema(SolutionIdea) if config.get('api_provider') == 'ollama' else None
@@ -412,26 +350,12 @@ Return JSON array:
 def generate_profile_ideas(profile: dict, config: dict) -> list[dict]:
     """Strategy D: Generate ideas based on holistic profile understanding."""
 
-    prompt = f"""You are roleplaying as someone with the following passion profile:
+    # Get prompt from config (with fallback to defaults)
+    prompt_template, system_prompt = get_prompt(config, "profile_ideas")
 
-{json.dumps(profile, indent=2)}
-
-Based on this person's interests, frustrations, tools, and patterns:
-
-Generate 5 project ideas that would EXCITE this person.
-These should feel like "why didn't I think of that?" moments.
-They should NOT be ideas they've already mentioned - synthesize something NEW.
-
-For each idea:
-- name: Project name
-- description: What it does (2-3 sentences)
-- profile_alignment: How this matches their interests/needs
-- novelty_factor: Why this is a fresh angle they haven't considered
-
-Return JSON array:
-[{{"name": "...", "description": "...", "profile_alignment": "...", "novelty_factor": "..."}}]"""
-
-    system_prompt = "You are an empathetic ideation expert who deeply understands human interests. Generate surprising, delightful ideas. Return only valid JSON array."
+    prompt = prompt_template.format(
+        profile=json.dumps(profile, indent=2)
+    )
 
     # Use schema for Ollama structured output
     schema = make_array_schema(ProfileBasedIdea) if config.get('api_provider') == 'ollama' else None
@@ -488,37 +412,22 @@ def generate_time_capsule_ideas(categorized: dict, consolidated: dict,
     time_capsule_ideas = []
     all_tools = list(tool_freq.keys())
 
+    # Get prompt from config (with fallback to defaults)
+    prompt_template, system_prompt = get_prompt(config, "time_capsule")
+
     for item in old_high_passion:
         idea = item["idea"]
         months_ago = item["months_ago"]
 
-        prompt = f"""This user had an idea {months_ago} months ago that they were excited about:
-
-ORIGINAL IDEA:
-Name: {idea.get('name', 'Unknown')}
-Description: {idea.get('description', '')}
-Motivation: {json.dumps(idea.get('motivations', []))}
-Passion Score: {idea.get('scores', {}).get('passion', 0)}/5
-Date First Mentioned: {item['first_date']}
-
-TOOLS THEY'VE EXPLORED:
-{json.dumps(all_tools[:20], indent=2)}
-
-Write two things:
-
-1. A brief "letter from past self" (2-3 sentences) - what past-them would say about why this mattered
-
-2. An UPDATED VERSION of this idea that could incorporate their knowledge/tools
-
-Return JSON:
-{{
-  "letter_from_past": "...",
-  "updated_name": "...",
-  "updated_vision": "How to approach this now with new knowledge",
-  "tools_to_use": ["..."]
-}}"""
-
-        system_prompt = "You are helping someone reconnect with their past ideas. Be warm and encouraging. Return only valid JSON."
+        prompt = prompt_template.format(
+            months_ago=months_ago,
+            idea_name=idea.get('name', 'Unknown'),
+            idea_description=idea.get('description', ''),
+            motivations=json.dumps(idea.get('motivations', [])),
+            passion_score=idea.get('scores', {}).get('passion', 0),
+            first_date=item['first_date'],
+            tools=json.dumps(all_tools[:20], indent=2)
+        )
 
         try:
             response = call_llm(prompt, config, system_prompt)
@@ -563,26 +472,12 @@ def deduplicate_generated_ideas(ideas: list[dict], config: dict) -> list[dict]:
             "strategy": idea.get("strategy")
         })
 
-    prompt = f"""Review these generated project ideas and identify any that are essentially the same idea.
+    # Get prompt from config (with fallback to defaults)
+    prompt_template, system_prompt = get_prompt(config, "deduplication")
 
-IDEAS:
-{json.dumps(ideas_for_dedup, indent=2)}
-
-For each group of similar ideas, pick the best name and description, and merge them.
-Return the IDs to keep and which IDs were merged into them.
-
-Return JSON:
-{{
-  "keep": [
-    {{"id": "id_to_keep", "merged_ids": ["id1", "id2"]}}
-  ],
-  "unique": ["id3", "id4"]
-}}
-
-If all ideas are unique, return:
-{{"keep": [], "unique": ["all", "the", "ids"]}}"""
-
-    system_prompt = "You are an expert at identifying semantic similarity. Return only valid JSON."
+    prompt = prompt_template.format(
+        ideas=json.dumps(ideas_for_dedup, indent=2)
+    )
 
     response = call_llm(prompt, config, system_prompt)
     result = parse_json_response(response)
@@ -642,25 +537,13 @@ def score_generated_ideas(ideas: list[dict], profile: dict, config: dict) -> lis
             "strategy": idea.get("strategy")
         })
 
-    prompt = f"""Score these generated project ideas on 5 dimensions (1-5 scale each):
+    # Get prompt from config (with fallback to defaults)
+    prompt_template, system_prompt = get_prompt(config, "generated_scoring")
 
-IDEAS:
-{json.dumps(ideas_for_scoring, indent=2)}
-
-USER PROFILE SUMMARY:
-{profile.get('summary', 'A developer with various interests.')}
-
-For each idea, score:
-1. effort: 1=weekend, 2=week, 3=month, 4=few months, 5=year+
-2. monetization: 1=none, 2=small niche, 3=moderate, 4=solid business, 5=high potential
-3. personal_utility: 1=nice to have, 3=regularly useful, 5=essential
-4. passion_alignment: 1=low match, 3=moderate, 5=perfect match to their interests
-5. novelty: 1=common idea, 3=somewhat fresh, 5=highly original
-
-Return JSON array:
-[{{"id": "...", "effort": N, "monetization": N, "personal_utility": N, "passion_alignment": N, "novelty": N}}]"""
-
-    system_prompt = "You are an expert at evaluating project ideas. Return only valid JSON array."
+    prompt = prompt_template.format(
+        ideas=json.dumps(ideas_for_scoring, indent=2),
+        profile_summary=profile.get('summary', 'A developer with various interests.')
+    )
 
     response = call_llm(prompt, config, system_prompt)
     scores_list = parse_json_response(response)
@@ -921,42 +804,13 @@ def develop_idea_further(idea_id: str) -> dict | None:
             profile = json.load(f)
         profile_summary = profile.get("summary", profile_summary)
 
-    prompt = f"""Develop a detailed project specification for this idea:
+    # Get prompt from config (with fallback to defaults)
+    prompt_template, system_prompt = get_prompt(config, "project_development")
 
-IDEA:
-{json.dumps(idea, indent=2)}
-
-USER PROFILE (for context):
-{profile_summary}
-
-Generate a comprehensive project plan:
-
-1. Full Description (300-500 words): Detailed explanation of what this project does, who it's for, and why it matters
-
-2. Tech Stack: Recommended technologies with rationale
-
-3. MVP Scope: 3-5 features for minimum viable product
-
-4. Challenges: 3-4 potential challenges with mitigations
-
-5. First 5 Steps: Concrete actions to start today
-
-6. Effort Estimate: weekend/week/month/quarter
-
-7. Connections: How this relates to user's other interests
-
-Return JSON:
-{{
-  "full_description": "...",
-  "tech_stack": {{"core": "...", "storage": "...", "ui": "...", "rationale": "..."}},
-  "mvp_scope": ["feature1", "feature2", ...],
-  "challenges": [{{"challenge": "...", "mitigation": "..."}}],
-  "first_steps": ["step1", "step2", "step3", "step4", "step5"],
-  "effort_estimate": "week",
-  "connections_to_interests": "..."
-}}"""
-
-    system_prompt = "You are an expert project planner. Create actionable, realistic project specifications. Return only valid JSON."
+    prompt = prompt_template.format(
+        idea=json.dumps(idea, indent=2),
+        profile_summary=profile_summary
+    )
 
     response = call_llm(prompt, config, system_prompt)
     spec = parse_json_response(response)

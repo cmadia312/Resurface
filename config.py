@@ -22,7 +22,8 @@ DEFAULT_CONFIG = {
 
     "requests_per_minute": 60,        # rate limiting (1 request/second)
     "retry_attempts": 2,
-    "theme_color": "#00ff00"          # UI theme color (hex)
+    "theme_color": "#00ff00",         # UI theme color (hex)
+    "prompts": {}                     # custom prompts (empty = use defaults)
 }
 
 

@@ -23,6 +23,7 @@ from datetime import datetime
 from config import load_config
 from llm_provider import call_llm, make_array_schema
 from schemas import ScoredIdea
+from prompts import get_prompt
 
 CONSOLIDATED_DIR = Path("data/consolidated")
 CONSOLIDATED_FILE = CONSOLIDATED_DIR / "consolidated.json"
@@ -57,44 +58,6 @@ def update_status(message: str, progress_pct: float | None = None,
             os.unlink(tmp_path)
         raise
 
-# Prompt for LLM-assisted scoring
-SCORING_PROMPT = """Score these project ideas on three dimensions. Use 1-5 scale.
-
-For each idea, evaluate:
-
-1. EFFORT (1=weekend project, 2=week, 3=month, 4=few months, 5=year+)
-   Consider: technical complexity, number of integrations needed, scope
-
-2. MONETIZATION (1=no revenue potential, 2=small niche, 3=moderate market, 4=solid business, 5=high potential)
-   Consider: market size, willingness to pay, competition, business model viability
-
-3. PERSONAL_UTILITY (1=nice to have, 2=occasionally useful, 3=regularly useful, 4=very useful, 5=essential)
-   Infer from HOW the user described it. High-utility signals:
-   - "I really need this", "would save me hours", "keep running into this problem"
-   - Frustration in the motivation
-   - Multiple mentions of personal use case
-   - Words like "daily", "constantly", "always"
-
-   Low-utility signals:
-   - Abstract/theoretical interest
-   - "It would be cool if..."
-   - No personal use case mentioned
-
-Ideas to score:
-{ideas_json}
-
-Return JSON array with this structure for each idea:
-[
-  {{
-    "name": "idea name (exact match from input)",
-    "effort": 1-5,
-    "monetization": 1-5,
-    "personal_utility": 1-5,
-    "reasoning": "brief explanation of scores"
-  }}
-]
-
-Return only valid JSON."""
 
 
 def load_consolidated() -> dict | None:
@@ -190,6 +153,9 @@ def get_llm_scores(ideas: list[dict], config: dict) -> dict:
     """
     provider = config.get('api_provider', 'openai')
 
+    # Get prompt from config (with fallback to defaults)
+    prompt_template, system_prompt_text = get_prompt(config, "scoring")
+
     # Prepare ideas for prompt - extract relevant info
     ideas_for_prompt = []
     for idea in ideas:
@@ -201,19 +167,19 @@ def get_llm_scores(ideas: list[dict], config: dict) -> dict:
             "evolution": idea.get('evolution', '')
         })
 
-    prompt = SCORING_PROMPT.format(ideas_json=json.dumps(ideas_for_prompt, indent=2))
+    prompt = prompt_template.format(ideas_json=json.dumps(ideas_for_prompt, indent=2))
 
     print(f"Calling LLM for scoring {len(ideas)} ideas...")
 
     # Determine schema and message format based on provider
     if provider == 'openai':
         messages = [{"role": "user", "content": prompt}]
-        system_prompt = "You are a startup advisor scoring project ideas. Return only valid JSON."
+        system_prompt = system_prompt_text
         schema = None
     elif provider == 'ollama':
         messages = [{
             "role": "user",
-            "content": f"You are a startup advisor scoring project ideas. Return only valid JSON.\n\n{prompt}"
+            "content": f"{system_prompt_text}\n\n{prompt}" if system_prompt_text else prompt
         }]
         system_prompt = None
         schema = make_array_schema(ScoredIdea)

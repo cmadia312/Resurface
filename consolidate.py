@@ -15,6 +15,7 @@ from datetime import datetime
 from config import load_config
 from llm_provider import call_llm, make_array_schema
 from schemas import ConsolidatedIdea, ConsolidatedProblem, ConsolidatedWorkflow
+from prompts import get_prompt
 
 EXTRACTIONS_DIR = Path("data/extractions")
 CONSOLIDATED_DIR = Path("data/consolidated")
@@ -48,48 +49,11 @@ def update_status(message: str, progress_pct: float | None = None,
             os.unlink(tmp_path)
         raise
 
-# Prompts for each item type
-CONSOLIDATION_PROMPTS = {
-    "ideas": """Here are project ideas extracted from multiple conversations over time.
-Group them into unique concepts—merge duplicates and near-duplicates that represent the same underlying idea.
-
-For each unique concept, return:
-- name: A clear consolidated name
-- description: 2-3 sentence synthesis of all mentions
-- occurrences: How many times it appeared
-- date_range: [earliest_mention, latest_mention]
-- evolution: Did it get more specific over time? Note any progression.
-- source_ids: List of conversation_ids that contained this idea
-- motivations: Combined list of motivations from all mentions
-- detail_levels: List of detail levels from each mention
-
-Return as a JSON array. Only return valid JSON, no other text.""",
-
-    "problems": """Here are problems/frustrations extracted from multiple conversations over time.
-Group them into unique themes—merge duplicates and near-duplicates that represent the same underlying issue.
-
-For each unique theme, return:
-- name: A clear consolidated name
-- description: 2-3 sentence synthesis of all mentions
-- occurrences: How many times it appeared
-- date_range: [earliest_mention, latest_mention]
-- source_ids: List of conversation_ids that contained this problem
-- contexts: Combined list of contexts from all mentions
-
-Return as a JSON array. Only return valid JSON, no other text.""",
-
-    "workflows": """Here are workflows/automations extracted from multiple conversations over time.
-Group them into unique concepts—merge duplicates and near-duplicates that represent the same workflow.
-
-For each unique concept, return:
-- name: A clear consolidated name
-- description: 2-3 sentence synthesis of all mentions
-- occurrences: How many times it appeared
-- date_range: [earliest_mention, latest_mention]
-- source_ids: List of conversation_ids that contained this workflow
-- statuses: List of statuses from each mention (exploring/building/optimizing)
-
-Return as a JSON array. Only return valid JSON, no other text.""",
+# Map item types to prompt keys
+CONSOLIDATION_PROMPT_KEYS = {
+    "ideas": "consolidate_ideas",
+    "problems": "consolidate_problems",
+    "workflows": "consolidate_workflows",
 }
 
 
@@ -192,13 +156,16 @@ def call_llm_for_consolidation(items: list[dict], item_type: str, config: dict) 
     """Call LLM to consolidate a batch of items."""
     provider = config.get('api_provider', 'openai')
 
-    prompt = CONSOLIDATION_PROMPTS.get(item_type)
-    if not prompt:
+    # Get prompt from config (with fallback to defaults)
+    prompt_key = CONSOLIDATION_PROMPT_KEYS.get(item_type)
+    if not prompt_key:
         raise ValueError(f"No consolidation prompt for item type: {item_type}")
+
+    prompt_template, system_prompt_text = get_prompt(config, prompt_key)
 
     # Format items for the prompt
     items_text = json.dumps(items, indent=2)
-    full_prompt = f"{prompt}\n\nItems to consolidate:\n{items_text}"
+    full_prompt = f"{prompt_template}\n\nItems to consolidate:\n{items_text}"
 
     # Map item type to schema for Ollama structured output
     schema_map = {
@@ -210,12 +177,12 @@ def call_llm_for_consolidation(items: list[dict], item_type: str, config: dict) 
     # Determine schema and message format based on provider
     if provider == 'openai':
         messages = [{"role": "user", "content": full_prompt}]
-        system_prompt = "You are a data consolidation assistant. Return only valid JSON arrays. Be concise in descriptions."
+        system_prompt = system_prompt_text
         schema = None
     elif provider == 'ollama':
         messages = [{
             "role": "user",
-            "content": f"You are a data consolidation assistant. Return only valid JSON arrays. Be concise in descriptions.\n\n{full_prompt}"
+            "content": f"{system_prompt_text}\n\n{full_prompt}" if system_prompt_text else full_prompt
         }]
         system_prompt = None
         schema = make_array_schema(schema_map.get(item_type, ConsolidatedIdea))

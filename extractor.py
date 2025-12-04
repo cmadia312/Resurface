@@ -9,35 +9,7 @@ import re
 
 from llm_provider import call_llm
 from schemas import ExtractionResult
-
-EXTRACTION_PROMPT = """Analyze this conversation and extract the following. Be specific—include enough context that someone reading this extraction would understand the idea without the original. If a category has nothing notable, omit it.
-
-1. PROJECT_IDEAS: Explicit mentions of something the user wants to build, create, or make. Include the stated or implied motivation.
-
-2. PROBLEMS: Frustrations, inefficiencies, or pain points described. These are implicit project seeds.
-
-3. WORKFLOWS: Systems, processes, or automations the user was trying to create or optimize.
-
-4. TOOLS_EXPLORED: Specific tools, APIs, libraries, or platforms the user was learning or evaluating.
-
-5. QUESTIONS_UNDERLYING: If the user asked variations of the same question, what's the deeper uncertainty or goal?
-
-6. EMOTIONAL_SIGNALS: Note if the user seemed excited, frustrated, obsessive, or stuck. Quote briefly if illustrative.
-
-Return valid JSON matching this schema:
-{
-  "project_ideas": [{"idea": "...", "motivation": "...", "detail_level": "vague|sketched|detailed"}],
-  "problems": [{"problem": "...", "context": "..."}],
-  "workflows": [{"workflow": "...", "status": "exploring|building|optimizing"}],
-  "tools_explored": ["tool1", "tool2"],
-  "underlying_questions": ["..."],
-  "emotional_signals": {"tone": "excited|frustrated|curious|stuck|neutral", "notes": "..."}
-}
-
-If the conversation contains nothing extractable (purely factual Q&A, casual chat, etc.), return:
-{"empty": true, "reason": "..."}"""
-
-RETRY_PROMPT = "Your previous response was not valid JSON. Please return only valid JSON matching the schema."
+from prompts import get_prompt
 
 
 def format_conversation(conversation: dict) -> str:
@@ -104,6 +76,10 @@ def extract_conversation(conversation: dict, config: dict) -> dict:
     Returns:
         Extraction result dict, or error dict if extraction fails
     """
+    # Get prompts from config (with fallback to defaults)
+    extraction_template, extraction_system = get_prompt(config, "extraction")
+    retry_template, _ = get_prompt(config, "extraction_retry")
+
     # Format the conversation
     formatted = format_conversation(conversation)
     provider = config.get('api_provider', 'openai')
@@ -112,12 +88,12 @@ def extract_conversation(conversation: dict, config: dict) -> dict:
     if provider == 'openai':
         # OpenAI: system prompt passed separately via llm_provider
         messages = [{"role": "user", "content": formatted}]
-        system_prompt = EXTRACTION_PROMPT
+        system_prompt = extraction_template
     else:
         # Anthropic and Ollama: system prompt included in user content
         messages = [{
             "role": "user",
-            "content": f"{EXTRACTION_PROMPT}\n\n---\n\n{formatted}"
+            "content": f"{extraction_template}\n\n---\n\n{formatted}"
         }]
         system_prompt = None
 
@@ -143,7 +119,7 @@ def extract_conversation(conversation: dict, config: dict) -> dict:
             # JSON parsing failed, add retry message
             if attempt < retry_attempts:
                 messages.append({"role": "assistant", "content": response_text})
-                messages.append({"role": "user", "content": RETRY_PROMPT})
+                messages.append({"role": "user", "content": retry_template})
 
         except Exception as e:
             # API error
