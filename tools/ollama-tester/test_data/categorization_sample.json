@@ -1,0 +1,43 @@
+{
+  "ideas": [
+    {
+      "name": "Personal Finance Tracker",
+      "description": "A personal expense tracking app with CSV bank import, custom categories, automatic transaction categorization, and tax report generation for side business expenses.",
+      "motivations": [
+        "Spending too much time reconciling bank statements with budget spreadsheet",
+        "Want to track spending patterns and generate tax reports"
+      ],
+      "occurrences": 2,
+      "evolution": "Started vague, became more detailed with specific features like CSV import and business expense separation"
+    },
+    {
+      "name": "Semantic Bookmark Manager",
+      "description": "Browser extension with AI-powered auto-tagging, dead link detection, and semantic search using embeddings to find bookmarks by meaning rather than keywords.",
+      "motivations": [
+        "Have thousands of disorganized bookmarks, can never find things",
+        "Bookmarks are a mess across multiple browsers"
+      ],
+      "occurrences": 2,
+      "evolution": "Consistent vision across mentions, focused on search and discovery"
+    },
+    {
+      "name": "ProjectPod Context Switcher",
+      "description": "CLI tool that captures and restores full project context including terminal state, editor files, environment variables, and browser tabs.",
+      "motivations": [
+        "Lose too much time switching between projects, resetting environment"
+      ],
+      "occurrences": 1,
+      "evolution": ""
+    },
+    {
+      "name": "Dotfiles Manager",
+      "description": "Simple tool to track and sync dotfiles (.zshrc, nvim config, etc.) to a git repo. Planned as a Rust learning project.",
+      "motivations": [
+        "Learning Rust and want to track config files",
+        "Got stuck on edge cases before, want to restart simpler"
+      ],
+      "occurrences": 2,
+      "evolution": "Scope narrowed from comprehensive to MVP focused on personal use"
+    }
+  ]
+}

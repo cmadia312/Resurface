@@ -4,12 +4,7 @@ config.json
 .env.*
 
 # Personal Conversation Data (CRITICAL - do not upload)
-data/conversations.json
-data/parsed/
-data/extractions/
-data/consolidated/
-data/synthesized/
-data/*_status.json
+data/
 
 # Python
 __pycache__/

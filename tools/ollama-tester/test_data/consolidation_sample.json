@@ -1,0 +1,111 @@
+{
+  "ideas": [
+    {
+      "idea": "Build a personal finance tracker with automatic categorization",
+      "motivation": "Spending too much time reconciling bank statements with budget spreadsheet",
+      "detail_level": "detailed",
+      "_source_id": "conv-001",
+      "_source_date": "2024-09-15",
+      "_source_title": "Personal Finance Tracker Discussion"
+    },
+    {
+      "idea": "Personal expense tracker with CSV import",
+      "motivation": "Want to track spending patterns and generate tax reports",
+      "detail_level": "sketched",
+      "_source_id": "conv-015",
+      "_source_date": "2024-09-20",
+      "_source_title": "Side Project Ideas"
+    },
+    {
+      "idea": "Bookmark manager with semantic search and auto-tagging",
+      "motivation": "Have thousands of disorganized bookmarks, can never find things",
+      "detail_level": "detailed",
+      "_source_id": "conv-008",
+      "_source_date": "2024-08-20",
+      "_source_title": "Development Workflow Discussion"
+    },
+    {
+      "idea": "Smart bookmark organizer",
+      "motivation": "Bookmarks are a mess across multiple browsers",
+      "detail_level": "vague",
+      "_source_id": "conv-022",
+      "_source_date": "2024-07-15",
+      "_source_title": "Productivity Tools Chat"
+    },
+    {
+      "idea": "Project context switcher - ContextSwitch or ProjectPod",
+      "motivation": "Lose too much time switching between projects, resetting environment",
+      "detail_level": "sketched",
+      "_source_id": "conv-008",
+      "_source_date": "2024-08-20",
+      "_source_title": "Development Workflow Discussion"
+    },
+    {
+      "idea": "Dotfiles manager in Rust",
+      "motivation": "Learning Rust and want to track config files",
+      "detail_level": "sketched",
+      "_source_id": "conv-008",
+      "_source_date": "2024-08-20",
+      "_source_title": "Development Workflow Discussion"
+    },
+    {
+      "idea": "Simple dotfiles synchronization tool",
+      "motivation": "Got stuck on edge cases before, want to restart simpler",
+      "detail_level": "vague",
+      "_source_id": "conv-031",
+      "_source_date": "2024-07-01",
+      "_source_title": "Extended Technical Discussion"
+    }
+  ],
+  "problems": [
+    {
+      "problem": "Spending 2+ hours daily sorting through email",
+      "context": "Multiple contexts in one inbox - client work, open source, newsletters, personal",
+      "_source_id": "conv-031",
+      "_source_date": "2024-07-01",
+      "_source_title": "Extended Technical Discussion"
+    },
+    {
+      "problem": "Email search is terrible for finding old threads",
+      "context": "Can't find conversations when needed, considering building better search",
+      "_source_id": "conv-031",
+      "_source_date": "2024-07-01",
+      "_source_title": "Extended Technical Discussion"
+    },
+    {
+      "problem": "Constantly switching between projects loses context and time",
+      "context": "Different Python/Node versions, env vars, terminal setups for each project",
+      "_source_id": "conv-008",
+      "_source_date": "2024-08-20",
+      "_source_title": "Development Workflow Discussion"
+    },
+    {
+      "problem": "Starting projects but never finishing them",
+      "context": "Has 10+ half-done repos, gets stuck on tedious parts and moves to new shiny ideas",
+      "_source_id": "conv-008",
+      "_source_date": "2024-08-20",
+      "_source_title": "Development Workflow Discussion"
+    },
+    {
+      "problem": "Note-taking system is scattered across multiple apps",
+      "context": "Notes in Notion, Obsidian, random text files - can't find anything",
+      "_source_id": "conv-031",
+      "_source_date": "2024-07-01",
+      "_source_title": "Extended Technical Discussion"
+    },
+    {
+      "problem": "Home Assistant automations are too complex to configure",
+      "context": "YAML config is intimidating, barely using HA beyond basic light controls",
+      "_source_id": "conv-031",
+      "_source_date": "2024-07-01",
+      "_source_title": "Extended Technical Discussion"
+    },
+    {
+      "problem": "Microservices migration at work is creating a distributed monolith",
+      "context": "Services are tangled, more incidents, slower deploys than before",
+      "_source_id": "conv-031",
+      "_source_date": "2024-07-01",
+      "_source_title": "Extended Technical Discussion"
+    }
+  ]
+}

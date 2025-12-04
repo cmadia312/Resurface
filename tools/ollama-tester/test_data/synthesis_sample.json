@@ -1,0 +1,53 @@
+{
+  "profile_summary": "A developer interested in productivity tools, automation, and learning new programming languages. Struggles with project completion and information overload. Has experience with Python, JavaScript/Node.js, and is learning Rust. Interested in home automation with Home Assistant.",
+
+  "themes": [
+    "Personal productivity and time management",
+    "Development workflow optimization",
+    "Information management and search",
+    "Home automation",
+    "Learning new programming languages (Rust)",
+    "CLI tools and local-first software"
+  ],
+
+  "tools": [
+    "Python",
+    "Node.js",
+    "Rust",
+    "Flask/FastAPI",
+    "pandas",
+    "Home Assistant",
+    "Obsidian",
+    "VS Code",
+    "Git",
+    "SQLite"
+  ],
+
+  "problems": [
+    {
+      "problem": "Email overload and poor search",
+      "frequency": 2,
+      "impact": "2+ hours daily wasted on email management"
+    },
+    {
+      "problem": "Context switching between projects",
+      "frequency": 3,
+      "impact": "Significant time lost resetting development environment"
+    },
+    {
+      "problem": "Starting projects but never finishing",
+      "frequency": 4,
+      "impact": "Multiple abandoned repositories, unrealized value"
+    },
+    {
+      "problem": "Scattered notes across multiple apps",
+      "frequency": 2,
+      "impact": "Can't find information when needed"
+    },
+    {
+      "problem": "Bookmark disorganization",
+      "frequency": 2,
+      "impact": "Saves resources but can never find them later"
+    }
+  ]
+}
