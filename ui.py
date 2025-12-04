@@ -3144,7 +3144,8 @@ def create_settings_tab():
         def save_settings(provider, model, api_key, rate_limit, ollama_host, ollama_model):
             try:
                 current_config = load_config()
-                new_config = {
+                # Update existing config to preserve other settings (like prompts)
+                current_config.update({
                     "api_provider": provider,
                     "model": model,
                     "api_key": api_key,
@@ -3155,8 +3156,8 @@ def create_settings_tab():
                     "ollama_host": ollama_host,
                     "ollama_model": ollama_model or "",
                     "ollama_timeout": current_config.get("ollama_timeout", 300),
-                }
-                save_config(new_config)
+                })
+                save_config(current_config)
 
                 # Validate if Ollama is selected
                 if provider == "ollama":
