@@ -1145,8 +1145,13 @@ def create_extraction_tab():
     def get_settings_display():
         """Get current settings as formatted markdown."""
         config = load_config()
-        return f"""**Model:** {config.get('model', 'unknown')}
-**Provider:** {config.get('api_provider', 'unknown')}
+        provider = config.get('api_provider', 'openai')
+        if provider == 'ollama':
+            model = config.get('ollama_model', 'unknown')
+        else:
+            model = config.get('model', 'unknown')
+        return f"""**Model:** {model}
+**Provider:** {provider}
 **Rate limit:** {config.get('requests_per_minute', 60)} req/min"""
 
     with gr.Tab("Extraction"):
