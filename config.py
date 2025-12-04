@@ -11,9 +11,15 @@ from pathlib import Path
 CONFIG_FILE = Path(__file__).parent / "config.json"
 
 DEFAULT_CONFIG = {
-    "api_provider": "openai",      # "anthropic" or "openai"
+    "api_provider": "openai",         # "anthropic", "openai", or "ollama"
     "model": "gpt-4o-mini",
     "api_key": "",                    # user provides, or use env var
+
+    # Ollama settings (for local LLM)
+    "ollama_host": "http://localhost:11434",
+    "ollama_model": "",               # requires explicit selection
+    "ollama_timeout": 300,            # 5 minutes for slow models
+
     "requests_per_minute": 60,        # rate limiting (1 request/second)
     "retry_attempts": 2,
     "theme_color": "#00ff00"          # UI theme color (hex)
@@ -77,18 +83,31 @@ def validate_config(config: dict = None) -> tuple[bool, str]:
 
     # Check provider
     provider = config.get("api_provider")
-    if provider not in ("anthropic", "openai"):
-        return False, f"Invalid api_provider: {provider}. Must be 'anthropic' or 'openai'"
+    if provider not in ("anthropic", "openai", "ollama"):
+        return False, f"Invalid api_provider: {provider}. Must be 'anthropic', 'openai', or 'ollama'"
 
-    # Check API key
-    api_key = get_api_key(config)
-    if not api_key:
-        env_var = "ANTHROPIC_API_KEY" if provider == "anthropic" else "OPENAI_API_KEY"
-        return False, f"No API key configured. Set 'api_key' in config.json or {env_var} environment variable"
+    # Provider-specific validation
+    if provider == "ollama":
+        # Check Ollama model is specified
+        if not config.get("ollama_model"):
+            return False, "No Ollama model selected. Please choose a model in Settings."
 
-    # Check model
-    if not config.get("model"):
-        return False, "No model specified in config"
+        # Check Ollama connection
+        from llm_provider import check_ollama_connection
+        host = config.get("ollama_host", "http://localhost:11434")
+        if not check_ollama_connection(host):
+            return False, f"Cannot connect to Ollama at {host}. Is Ollama running?"
+
+    else:
+        # Cloud providers need API key
+        api_key = get_api_key(config)
+        if not api_key:
+            env_var = "ANTHROPIC_API_KEY" if provider == "anthropic" else "OPENAI_API_KEY"
+            return False, f"No API key configured. Set 'api_key' in config.json or {env_var} environment variable"
+
+        # Check model
+        if not config.get("model"):
+            return False, "No model specified in config"
 
     return True, ""
 

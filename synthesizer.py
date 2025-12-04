@@ -17,7 +17,15 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from config import load_config, get_api_key
+
+from config import load_config
+from llm_provider import call_llm as call_llm_provider, make_array_schema
+from schemas import (
+    PassionProfile,
+    IntersectionIdea,
+    SolutionIdea,
+    ProfileBasedIdea,
+)
 
 # Paths
 CONSOLIDATED_DIR = Path("data/consolidated")
@@ -82,43 +90,53 @@ def parse_json_response(text: str) -> dict | list | None:
     return None
 
 
-def call_llm(prompt: str, config: dict, system_prompt: str = None) -> str:
-    """Call configured LLM provider."""
+def call_llm(prompt: str, config: dict, system_prompt: str = None, schema=None) -> str:
+    """
+    Call configured LLM provider.
+
+    This is a wrapper around the unified call_llm_provider that maintains
+    the original function signature for backwards compatibility.
+
+    Args:
+        prompt: The user prompt
+        config: Configuration dict
+        system_prompt: Optional system prompt
+        schema: Optional Pydantic schema for Ollama structured output
+
+    Returns:
+        Response text from the model
+    """
     provider = config.get('api_provider', 'openai')
-    api_key = get_api_key(config)
 
+    # Build messages based on provider
     if provider == 'openai':
-        import openai
-        client = openai.OpenAI(api_key=api_key)
-        messages = []
+        # OpenAI: system prompt passed separately
+        messages = [{"role": "user", "content": prompt}]
+        pass_system_prompt = system_prompt
+    elif provider == 'ollama':
+        # Ollama: system prompt included in user content
         if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        response = client.chat.completions.create(
-            model=config.get('model', 'gpt-4o-mini'),
-            max_tokens=8192,
-            messages=messages
-        )
-        return response.choices[0].message.content
-
-    elif provider == 'anthropic':
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
-
-        full_prompt = prompt
-        if system_prompt:
-            full_prompt = f"{system_prompt}\n\n{prompt}"
-
-        response = client.messages.create(
-            model=config.get('model', 'claude-sonnet-4-20250514'),
-            max_tokens=8192,
-            messages=[{"role": "user", "content": full_prompt}]
-        )
-        return response.content[0].text
-
+            full_content = f"{system_prompt}\n\n{prompt}"
+        else:
+            full_content = prompt
+        messages = [{"role": "user", "content": full_content}]
+        pass_system_prompt = None
     else:
-        raise ValueError(f"Unknown API provider: {provider}")
+        # Anthropic: system prompt included in user content
+        if system_prompt:
+            full_content = f"{system_prompt}\n\n{prompt}"
+        else:
+            full_content = prompt
+        messages = [{"role": "user", "content": full_content}]
+        pass_system_prompt = None
+
+    return call_llm_provider(
+        messages,
+        config,
+        schema=schema,
+        max_tokens=8192,
+        system_prompt=pass_system_prompt
+    )
 
 
 def load_synthesis_inputs() -> tuple[dict, dict] | None:
@@ -328,7 +346,9 @@ Return JSON array:
 
     system_prompt = "You are a creative project ideation expert. Generate novel, exciting project ideas. Return only valid JSON array."
 
-    response = call_llm(prompt, config, system_prompt)
+    # Use schema for Ollama structured output
+    schema = make_array_schema(IntersectionIdea) if config.get('api_provider') == 'ollama' else None
+    response = call_llm(prompt, config, system_prompt, schema=schema)
     ideas = parse_json_response(response)
 
     if ideas is None or not isinstance(ideas, list):
@@ -373,7 +393,9 @@ Return JSON array:
 
     system_prompt = "You are a practical problem-solving expert. Generate actionable, buildable solutions. Return only valid JSON array."
 
-    response = call_llm(prompt, config, system_prompt)
+    # Use schema for Ollama structured output
+    schema = make_array_schema(SolutionIdea) if config.get('api_provider') == 'ollama' else None
+    response = call_llm(prompt, config, system_prompt, schema=schema)
     ideas = parse_json_response(response)
 
     if ideas is None or not isinstance(ideas, list):
@@ -411,7 +433,9 @@ Return JSON array:
 
     system_prompt = "You are an empathetic ideation expert who deeply understands human interests. Generate surprising, delightful ideas. Return only valid JSON array."
 
-    response = call_llm(prompt, config, system_prompt)
+    # Use schema for Ollama structured output
+    schema = make_array_schema(ProfileBasedIdea) if config.get('api_provider') == 'ollama' else None
+    response = call_llm(prompt, config, system_prompt, schema=schema)
     ideas = parse_json_response(response)
 
     if ideas is None or not isinstance(ideas, list):

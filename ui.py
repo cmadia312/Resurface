@@ -2978,6 +2978,7 @@ def create_settings_tab():
     """Create the settings and data management tab."""
     from config import load_config, save_config
     from data_management import get_data_status, reset_extractions, reset_all_processed, format_status_markdown
+    from llm_provider import check_ollama_connection, list_ollama_models
 
     with gr.Tab("Settings"):
         gr.Markdown("## Settings")
@@ -2988,38 +2989,154 @@ def create_settings_tab():
         gr.Markdown("### API Configuration")
 
         config = load_config()
+        current_provider = config.get("api_provider", "openai")
+        is_ollama = current_provider == "ollama"
 
         with gr.Row():
             with gr.Column():
                 provider_dropdown = gr.Dropdown(
-                    choices=["openai", "anthropic"],
-                    value=config.get("api_provider", "openai"),
-                    label="API Provider"
-                )
-                model_input = gr.Textbox(
-                    value=config.get("model", "gpt-4o-mini"),
-                    label="Model"
+                    choices=["openai", "anthropic", "ollama"],
+                    value=current_provider,
+                    label="LLM Provider"
                 )
 
-            with gr.Column():
-                api_key_input = gr.Textbox(
-                    value=config.get("api_key", ""),
-                    label="API Key",
-                    type="password",
-                    placeholder="Leave blank to use environment variable"
-                )
-                rate_limit_input = gr.Number(
-                    label="Requests per minute (1-60)",
-                    value=config.get("requests_per_minute", 20),
-                    minimum=1,
-                    maximum=60,
-                    step=1
-                )
+        # Cloud provider settings (OpenAI/Anthropic)
+        with gr.Group(visible=not is_ollama) as cloud_settings:
+            with gr.Row():
+                with gr.Column():
+                    model_input = gr.Textbox(
+                        value=config.get("model", "gpt-4o-mini"),
+                        label="Model"
+                    )
+                with gr.Column():
+                    api_key_input = gr.Textbox(
+                        value=config.get("api_key", ""),
+                        label="API Key",
+                        type="password",
+                        placeholder="Leave blank to use environment variable"
+                    )
+
+        # Ollama settings (Local)
+        with gr.Group(visible=is_ollama) as ollama_settings:
+            with gr.Row():
+                with gr.Column():
+                    ollama_host_input = gr.Textbox(
+                        value=config.get("ollama_host", "http://localhost:11434"),
+                        label="Ollama Host"
+                    )
+                with gr.Column():
+                    # Get initial Ollama models if connected
+                    initial_models = []
+                    initial_status = "Checking connection..."
+                    if is_ollama:
+                        try:
+                            if check_ollama_connection(config.get("ollama_host", "http://localhost:11434")):
+                                initial_models = list_ollama_models(config.get("ollama_host", "http://localhost:11434"))
+                                initial_status = "Connected to Ollama"
+                            else:
+                                initial_status = "Cannot connect to Ollama. Is it running?"
+                        except Exception:
+                            initial_status = "Cannot connect to Ollama. Is it running?"
+
+                    ollama_model_dropdown = gr.Dropdown(
+                        choices=initial_models,
+                        value=config.get("ollama_model", "") or (initial_models[0] if initial_models else None),
+                        label="Ollama Model"
+                    )
+
+            with gr.Row():
+                refresh_models_btn = gr.Button("Refresh Models", size="sm")
+                ollama_status = gr.Markdown(initial_status)
+
+        # Rate limit (shared)
+        with gr.Row():
+            rate_limit_input = gr.Number(
+                label="Requests per minute (1-60)",
+                value=config.get("requests_per_minute", 20),
+                minimum=1,
+                maximum=60,
+                step=1
+            )
 
         save_settings_btn = gr.Button("Save Settings", variant="primary")
         settings_result = gr.Markdown("")
 
-        def save_settings(provider, model, api_key, rate_limit):
+        # Provider change handler - also refreshes models when switching to Ollama
+        def on_provider_change(provider, host):
+            is_ollama = provider == "ollama"
+            if is_ollama:
+                # Fetch models when switching to Ollama
+                try:
+                    if check_ollama_connection(host):
+                        models = list_ollama_models(host)
+                        return (
+                            gr.update(visible=False),  # cloud_settings
+                            gr.update(visible=True),   # ollama_settings
+                            gr.update(choices=models, value=models[0] if models else None),
+                            "Connected to Ollama"
+                        )
+                    else:
+                        return (
+                            gr.update(visible=False),
+                            gr.update(visible=True),
+                            gr.update(choices=[], value=None),
+                            "Cannot connect to Ollama. Is it running?"
+                        )
+                except Exception as e:
+                    return (
+                        gr.update(visible=False),
+                        gr.update(visible=True),
+                        gr.update(choices=[], value=None),
+                        f"Error: {e}"
+                    )
+            else:
+                return (
+                    gr.update(visible=True),   # cloud_settings
+                    gr.update(visible=False),  # ollama_settings
+                    gr.update(),  # no change to dropdown
+                    ""  # no change to status
+                )
+
+        provider_dropdown.change(
+            fn=on_provider_change,
+            inputs=[provider_dropdown, ollama_host_input],
+            outputs=[cloud_settings, ollama_settings, ollama_model_dropdown, ollama_status]
+        )
+
+        # Refresh Ollama models handler
+        def refresh_ollama_models_handler(host):
+            try:
+                if check_ollama_connection(host):
+                    models = list_ollama_models(host)
+                    if models:
+                        return (
+                            gr.update(choices=models, value=models[0]),
+                            "Connected to Ollama"
+                        )
+                    else:
+                        return (
+                            gr.update(choices=[], value=None),
+                            "Connected but no models found. Run: ollama pull gemma3:4b"
+                        )
+                else:
+                    return (
+                        gr.update(choices=[], value=None),
+                        "Cannot connect to Ollama. Is it running?"
+                    )
+            except Exception as e:
+                return (
+                    gr.update(choices=[], value=None),
+                    f"Error: {e}"
+                )
+
+        refresh_models_btn.click(
+            fn=refresh_ollama_models_handler,
+            inputs=[ollama_host_input],
+            outputs=[ollama_model_dropdown, ollama_status]
+        )
+
+        # Save settings handler
+        def save_settings(provider, model, api_key, rate_limit, ollama_host, ollama_model):
             try:
                 current_config = load_config()
                 new_config = {
@@ -3028,16 +3145,28 @@ def create_settings_tab():
                     "api_key": api_key,
                     "requests_per_minute": int(rate_limit),
                     "retry_attempts": 2,
-                    "theme_color": current_config.get("theme_color", "#00ff00")
+                    "theme_color": current_config.get("theme_color", "#00ff00"),
+                    # Ollama settings
+                    "ollama_host": ollama_host,
+                    "ollama_model": ollama_model or "",
+                    "ollama_timeout": current_config.get("ollama_timeout", 300),
                 }
                 save_config(new_config)
+
+                # Validate if Ollama is selected
+                if provider == "ollama":
+                    if not ollama_model:
+                        return "Warning: No Ollama model selected. Please select a model."
+                    if not check_ollama_connection(ollama_host):
+                        return "Warning: Settings saved but cannot connect to Ollama."
+
                 return "Settings saved successfully."
             except Exception as e:
                 return f"Error saving settings: {e}"
 
         save_settings_btn.click(
             fn=save_settings,
-            inputs=[provider_dropdown, model_input, api_key_input, rate_limit_input],
+            inputs=[provider_dropdown, model_input, api_key_input, rate_limit_input, ollama_host_input, ollama_model_dropdown],
             outputs=[settings_result]
         )
 

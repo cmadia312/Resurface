@@ -2,11 +2,13 @@
 """
 Core extraction logic for analyzing conversations with LLMs.
 
-Supports both Anthropic and OpenAI APIs.
+Supports Anthropic, OpenAI, and Ollama (local) APIs.
 """
 import json
 import re
-from config import get_api_key
+
+from llm_provider import call_llm
+from schemas import ExtractionResult
 
 EXTRACTION_PROMPT = """Analyze this conversation and extract the following. Be specific—include enough context that someone reading this extraction would understand the idea without the original. If a category has nothing notable, omit it.
 
@@ -89,56 +91,6 @@ def parse_json_response(text: str) -> dict | None:
     return None
 
 
-def call_anthropic(messages: list, config: dict) -> str:
-    """Call Anthropic API and return response text."""
-    import anthropic
-
-    api_key = get_api_key(config)
-    client = anthropic.Anthropic(api_key=api_key)
-
-    response = client.messages.create(
-        model=config.get('model', 'claude-sonnet-4-20250514'),
-        max_tokens=2048,
-        messages=messages
-    )
-
-    return response.content[0].text
-
-
-def call_openai(messages: list, config: dict) -> str:
-    """Call OpenAI API and return response text."""
-    import openai
-
-    api_key = get_api_key(config)
-    client = openai.OpenAI(api_key=api_key)
-
-    # Convert to OpenAI message format
-    openai_messages = [{"role": "system", "content": EXTRACTION_PROMPT}]
-    for msg in messages:
-        openai_messages.append({
-            "role": msg["role"],
-            "content": msg["content"]
-        })
-
-    response = client.chat.completions.create(
-        model=config.get('model', 'gpt-4o'),
-        max_tokens=2048,
-        messages=openai_messages
-    )
-
-    return response.choices[0].message.content
-
-
-def call_llm(messages: list, config: dict) -> str:
-    """Call the configured LLM provider."""
-    provider = config.get('api_provider', 'anthropic')
-
-    if provider == 'anthropic':
-        return call_anthropic(messages, config)
-    elif provider == 'openai':
-        return call_openai(messages, config)
-    else:
-        raise ValueError(f"Unknown API provider: {provider}")
 
 
 def extract_conversation(conversation: dict, config: dict) -> dict:
@@ -154,25 +106,35 @@ def extract_conversation(conversation: dict, config: dict) -> dict:
     """
     # Format the conversation
     formatted = format_conversation(conversation)
+    provider = config.get('api_provider', 'openai')
 
-    # Build initial message
-    if config.get('api_provider') == 'anthropic':
+    # Build messages based on provider
+    if provider == 'openai':
+        # OpenAI: system prompt passed separately via llm_provider
+        messages = [{"role": "user", "content": formatted}]
+        system_prompt = EXTRACTION_PROMPT
+    else:
+        # Anthropic and Ollama: system prompt included in user content
         messages = [{
             "role": "user",
             "content": f"{EXTRACTION_PROMPT}\n\n---\n\n{formatted}"
         }]
-    else:
-        # For OpenAI, system prompt is added in call_openai
-        messages = [{
-            "role": "user",
-            "content": formatted
-        }]
+        system_prompt = None
+
+    # Use ExtractionResult schema for Ollama structured output
+    schema = ExtractionResult if provider == 'ollama' else None
 
     retry_attempts = config.get('retry_attempts', 2)
 
     for attempt in range(retry_attempts + 1):
         try:
-            response_text = call_llm(messages, config)
+            response_text = call_llm(
+                messages,
+                config,
+                schema=schema,
+                max_tokens=2048,
+                system_prompt=system_prompt
+            )
             result = parse_json_response(response_text)
 
             if result is not None:

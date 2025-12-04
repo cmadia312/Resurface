@@ -112,12 +112,13 @@ def get_extraction_status() -> dict:
 def get_pending_conversations(limit: int = None) -> list:
     """
     Get conversations that haven't been extracted yet.
+    Returns newest conversations first.
 
     Args:
         limit: Maximum number to return (None for all)
 
     Returns:
-        List of conversation metadata dicts
+        List of conversation metadata dicts, sorted by date (newest first)
     """
     manifest = load_manifest()
     pending = []
@@ -128,8 +129,13 @@ def get_pending_conversations(limit: int = None) -> list:
 
         if not extraction_file.exists():
             pending.append(conv)
-            if limit and len(pending) >= limit:
-                break
+
+    # Sort by date, newest first
+    pending.sort(key=lambda x: x.get('created', ''), reverse=True)
+
+    # Apply limit after sorting
+    if limit:
+        pending = pending[:limit]
 
     return pending
 

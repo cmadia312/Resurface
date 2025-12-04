@@ -19,7 +19,10 @@ import os
 import tempfile
 from pathlib import Path
 from datetime import datetime
-from config import load_config, get_api_key
+
+from config import load_config
+from llm_provider import call_llm, make_array_schema
+from schemas import ScoredIdea
 
 CONSOLIDATED_DIR = Path("data/consolidated")
 CONSOLIDATED_FILE = CONSOLIDATED_DIR / "consolidated.json"
@@ -186,7 +189,6 @@ def get_llm_scores(ideas: list[dict], config: dict) -> dict:
     Returns dict mapping idea name -> scores dict.
     """
     provider = config.get('api_provider', 'openai')
-    api_key = get_api_key(config)
 
     # Prepare ideas for prompt - extract relevant info
     ideas_for_prompt = []
@@ -203,32 +205,31 @@ def get_llm_scores(ideas: list[dict], config: dict) -> dict:
 
     print(f"Calling LLM for scoring {len(ideas)} ideas...")
 
+    # Determine schema and message format based on provider
     if provider == 'openai':
-        import openai
-        client = openai.OpenAI(api_key=api_key)
-
-        response = client.chat.completions.create(
-            model=config.get('model', 'gpt-4o-mini'),
-            max_tokens=8192,
-            messages=[
-                {"role": "system", "content": "You are a startup advisor scoring project ideas. Return only valid JSON."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        response_text = response.choices[0].message.content
-
-    elif provider == 'anthropic':
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
-
-        response = client.messages.create(
-            model=config.get('model', 'claude-sonnet-4-20250514'),
-            max_tokens=8192,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        response_text = response.content[0].text
+        messages = [{"role": "user", "content": prompt}]
+        system_prompt = "You are a startup advisor scoring project ideas. Return only valid JSON."
+        schema = None
+    elif provider == 'ollama':
+        messages = [{
+            "role": "user",
+            "content": f"You are a startup advisor scoring project ideas. Return only valid JSON.\n\n{prompt}"
+        }]
+        system_prompt = None
+        schema = make_array_schema(ScoredIdea)
     else:
-        raise ValueError(f"Unknown provider: {provider}")
+        # Anthropic
+        messages = [{"role": "user", "content": prompt}]
+        system_prompt = None
+        schema = None
+
+    response_text = call_llm(
+        messages,
+        config,
+        schema=schema,
+        max_tokens=8192,
+        system_prompt=system_prompt
+    )
 
     # Parse response
     scores_list = parse_json_array(response_text)

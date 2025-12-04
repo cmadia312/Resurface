@@ -11,7 +11,10 @@ import os
 import tempfile
 from pathlib import Path
 from datetime import datetime
-from config import load_config, get_api_key
+
+from config import load_config
+from llm_provider import call_llm, make_array_schema
+from schemas import ConsolidatedIdea, ConsolidatedProblem, ConsolidatedWorkflow
 
 EXTRACTIONS_DIR = Path("data/extractions")
 CONSOLIDATED_DIR = Path("data/consolidated")
@@ -188,7 +191,6 @@ def collect_emotions(extractions: list[dict]) -> list[dict]:
 def call_llm_for_consolidation(items: list[dict], item_type: str, config: dict) -> list[dict]:
     """Call LLM to consolidate a batch of items."""
     provider = config.get('api_provider', 'openai')
-    api_key = get_api_key(config)
 
     prompt = CONSOLIDATION_PROMPTS.get(item_type)
     if not prompt:
@@ -198,40 +200,38 @@ def call_llm_for_consolidation(items: list[dict], item_type: str, config: dict) 
     items_text = json.dumps(items, indent=2)
     full_prompt = f"{prompt}\n\nItems to consolidate:\n{items_text}"
 
+    # Map item type to schema for Ollama structured output
+    schema_map = {
+        "ideas": ConsolidatedIdea,
+        "problems": ConsolidatedProblem,
+        "workflows": ConsolidatedWorkflow,
+    }
+
+    # Determine schema and message format based on provider
     if provider == 'openai':
-        import openai
-        client = openai.OpenAI(api_key=api_key)
-
-        response = client.chat.completions.create(
-            model=config.get('model', 'gpt-4o-mini'),
-            max_tokens=8192,
-            messages=[
-                {"role": "system", "content": "You are a data consolidation assistant. Return only valid JSON arrays. Be concise in descriptions."},
-                {"role": "user", "content": full_prompt}
-            ]
-        )
-        response_text = response.choices[0].message.content
-
-        # Check for truncation
-        if response.choices[0].finish_reason == 'length':
-            print(f"  Warning: Response was truncated due to token limit")
-
-    elif provider == 'anthropic':
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
-
-        response = client.messages.create(
-            model=config.get('model', 'claude-sonnet-4-20250514'),
-            max_tokens=8192,
-            messages=[{"role": "user", "content": full_prompt}]
-        )
-        response_text = response.content[0].text
-
-        # Check for truncation
-        if response.stop_reason == 'max_tokens':
-            print(f"  Warning: Response was truncated due to token limit")
+        messages = [{"role": "user", "content": full_prompt}]
+        system_prompt = "You are a data consolidation assistant. Return only valid JSON arrays. Be concise in descriptions."
+        schema = None
+    elif provider == 'ollama':
+        messages = [{
+            "role": "user",
+            "content": f"You are a data consolidation assistant. Return only valid JSON arrays. Be concise in descriptions.\n\n{full_prompt}"
+        }]
+        system_prompt = None
+        schema = make_array_schema(schema_map.get(item_type, ConsolidatedIdea))
     else:
-        raise ValueError(f"Unknown provider: {provider}")
+        # Anthropic
+        messages = [{"role": "user", "content": full_prompt}]
+        system_prompt = None
+        schema = None
+
+    response_text = call_llm(
+        messages,
+        config,
+        schema=schema,
+        max_tokens=8192,
+        system_prompt=system_prompt
+    )
 
     # Parse response
     return parse_json_array(response_text)
