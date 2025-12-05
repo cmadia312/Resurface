@@ -3694,6 +3694,214 @@ Both ChatGPT and Claude exports are named `conversations.json` - use the appropr
 
 
 # =============================================================================
+# EXPORT TAB
+# =============================================================================
+
+def create_export_tab():
+    """Create the Obsidian export tab."""
+    from pathlib import Path
+
+    with gr.Tab("Export"):
+        gr.Markdown("## Export to Obsidian")
+        gr.Markdown("""
+Export your Resurface data to an Obsidian-compatible markdown vault.
+
+The export creates:
+- **Conversations** - Full transcripts with metadata and wiki-links
+- **Ideas** - Consolidated ideas organized by category (Quick Wins, Validate, Revive, Someday)
+- **Problems & Workflows** - Pain points and processes you've explored
+- **Tools** - Hub pages for each tool with backlinks to related content
+- **Themes** - Theme pages from your passion profile
+- **Maps of Content** - Navigation pages for exploring your knowledge base
+
+Open the exported vault in Obsidian to visualize your brain map in the Graph View!
+""")
+
+        with gr.Row():
+            with gr.Column(scale=1):
+                gr.Markdown("### Export Options")
+                include_conversations = gr.Checkbox(
+                    label="Include full conversations",
+                    value=True,
+                    info="Export complete conversation transcripts"
+                )
+                include_consolidated = gr.Checkbox(
+                    label="Include consolidated insights",
+                    value=True,
+                    info="Export merged ideas, problems, and workflows"
+                )
+                include_synthesized = gr.Checkbox(
+                    label="Include synthesis outputs",
+                    value=True,
+                    info="Export passion profile and generated ideas"
+                )
+                clean_export = gr.Checkbox(
+                    label="Clean export (delete existing vault)",
+                    value=False,
+                    info="Remove previous export before generating new one"
+                )
+
+            with gr.Column(scale=1):
+                gr.Markdown("### Graph View Tips")
+                gr.Markdown("""
+After opening in Obsidian:
+1. Press `Ctrl/Cmd + G` for Graph View
+2. Use filters to focus:
+   - `-#type/conversation` hides conversations
+   - `#category/quick_win` shows quick wins
+   - `#emotion/excited` shows exciting topics
+3. Color nodes by tag for visual grouping
+4. Adjust depth slider to see connections
+""")
+
+        with gr.Row():
+            export_btn = gr.Button("Export to Obsidian", variant="primary", size="lg")
+            incremental_btn = gr.Button("Incremental Export", variant="secondary")
+
+        export_progress = gr.Textbox(
+            label="Export Progress",
+            value="Click 'Export to Obsidian' to begin...",
+            lines=8,
+            interactive=False
+        )
+
+        with gr.Row():
+            with gr.Column():
+                export_stats = gr.JSON(
+                    label="Export Statistics",
+                    visible=False
+                )
+            with gr.Column():
+                vault_path_display = gr.Textbox(
+                    label="Vault Location",
+                    value=str(Path("data/obsidian-vault").absolute()),
+                    interactive=False,
+                    visible=False
+                )
+
+        def run_export_handler(include_conv, include_cons, include_synth, clean):
+            """Handle export button click with streaming progress."""
+            try:
+                from obsidian_exporter import run_export, get_status
+                import time
+
+                # Start export in background would be ideal, but for simplicity
+                # we'll run synchronously and stream status
+                yield (
+                    "Starting export...",
+                    gr.update(visible=False),
+                    gr.update(visible=False)
+                )
+
+                stats = run_export(
+                    include_conversations=include_conv,
+                    include_consolidated=include_cons,
+                    include_synthesized=include_synth,
+                    clean_export=clean
+                )
+
+                if stats:
+                    vault_path = str(Path("data/obsidian-vault").absolute())
+                    msg = f"""Export complete!
+
+Exported:
+- {stats.get('conversations', 0)} conversations
+- {stats.get('ideas', 0)} ideas
+- {stats.get('problems', 0)} problems
+- {stats.get('workflows', 0)} workflows
+- {stats.get('tools', 0)} tool pages
+- {stats.get('themes', 0)} theme pages
+- {stats.get('generated', 0)} generated ideas
+
+Vault location: {vault_path}
+
+To view your brain map:
+1. Open Obsidian
+2. Click "Open folder as vault"
+3. Select: {vault_path}
+4. Press Ctrl/Cmd + G for Graph View"""
+                    yield (
+                        msg,
+                        gr.update(value=stats, visible=True),
+                        gr.update(value=vault_path, visible=True)
+                    )
+                else:
+                    yield (
+                        "Export failed - check console for errors",
+                        gr.update(visible=False),
+                        gr.update(visible=False)
+                    )
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                yield (
+                    f"Export error: {str(e)}",
+                    gr.update(visible=False),
+                    gr.update(visible=False)
+                )
+
+        def run_incremental_handler():
+            """Handle incremental export."""
+            try:
+                from obsidian_exporter import run_incremental_export
+
+                yield (
+                    "Checking for new items...",
+                    gr.update(visible=False),
+                    gr.update(visible=False)
+                )
+
+                stats = run_incremental_export()
+
+                if stats.get("new_conversations", 0) == 0 and not stats.get("conversations"):
+                    yield (
+                        "No new items to export. Your vault is up to date!",
+                        gr.update(visible=False),
+                        gr.update(visible=False)
+                    )
+                else:
+                    vault_path = str(Path("data/obsidian-vault").absolute())
+                    new_count = stats.get("new_conversations", 0)
+                    msg = f"""Incremental export complete!
+
+Added {new_count} new conversations.
+
+Total in vault:
+- {stats.get('conversations', 0)} conversations
+- {stats.get('ideas', 0)} ideas
+- {stats.get('tools', 0)} tools
+
+Vault location: {vault_path}"""
+                    yield (
+                        msg,
+                        gr.update(value=stats, visible=True),
+                        gr.update(value=vault_path, visible=True)
+                    )
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                yield (
+                    f"Export error: {str(e)}",
+                    gr.update(visible=False),
+                    gr.update(visible=False)
+                )
+
+        export_btn.click(
+            fn=run_export_handler,
+            inputs=[include_conversations, include_consolidated, include_synthesized, clean_export],
+            outputs=[export_progress, export_stats, vault_path_display]
+        )
+
+        incremental_btn.click(
+            fn=run_incremental_handler,
+            inputs=[],
+            outputs=[export_progress, export_stats, vault_path_display]
+        )
+
+
+# =============================================================================
 # MAIN APP
 # =============================================================================
 
@@ -3729,6 +3937,7 @@ def create_app():
             consolidated_tab, consolidated_load_fn, consolidated_outputs = create_consolidated_tab()
             categories_tab, categories_load_fn, categories_outputs = create_categories_tab()
             synthesis_tab, synthesis_load_fn, synthesis_outputs = create_synthesis_tab()
+            create_export_tab()
 
         # Auto-load dashboard on start
         app.load(fn=dashboard_load_fn, outputs=dashboard_outputs)
