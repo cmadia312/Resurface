@@ -1171,6 +1171,11 @@ def create_extraction_tab():
                     minimum=1,
                     step=1
                 )
+                auto_full_process = gr.Checkbox(
+                    label="Auto-run full process after extraction",
+                    value=False,
+                    info="Runs consolidation, categorization, and synthesis automatically"
+                )
                 with gr.Row():
                     extract_btn = gr.Button("Start Extraction", variant="primary")
                     extract_all_btn = gr.Button("Extract All Remaining", variant="secondary")
@@ -1313,6 +1318,64 @@ def create_extraction_tab():
 
         def run_all_extraction():
             yield from run_extraction_with_polling(extract_all=True)
+
+        def run_extraction_with_auto_process(count, auto_process):
+            """Run extraction and optionally chain into full process."""
+            STATUS_FILE = Path("data/extraction_status.json")
+
+            # Run extraction
+            for msg in run_extraction_with_polling(count=count, extract_all=False):
+                yield msg
+
+            # Check if we should auto-continue
+            if not auto_process:
+                return
+
+            # Check if extraction succeeded
+            extraction_succeeded = False
+            if STATUS_FILE.exists():
+                try:
+                    with open(STATUS_FILE, 'r') as f:
+                        status = json.load(f)
+                    extraction_succeeded = status.get('complete', False) and not status.get('error', False)
+                except (json.JSONDecodeError, IOError):
+                    pass
+
+            if extraction_succeeded:
+                yield "\n\n" + "=" * 60 + "\nAUTO-STARTING FULL PROCESS...\n" + "=" * 60 + "\n"
+                for msg in run_full_process():
+                    yield msg
+            else:
+                yield "\n\nSkipping auto-run: extraction did not complete successfully."
+
+        def run_all_extraction_with_auto_process(auto_process):
+            """Run extract all and optionally chain into full process."""
+            STATUS_FILE = Path("data/extraction_status.json")
+
+            # Run extraction
+            for msg in run_extraction_with_polling(extract_all=True):
+                yield msg
+
+            # Check if we should auto-continue
+            if not auto_process:
+                return
+
+            # Check if extraction succeeded
+            extraction_succeeded = False
+            if STATUS_FILE.exists():
+                try:
+                    with open(STATUS_FILE, 'r') as f:
+                        status = json.load(f)
+                    extraction_succeeded = status.get('complete', False) and not status.get('error', False)
+                except (json.JSONDecodeError, IOError):
+                    pass
+
+            if extraction_succeeded:
+                yield "\n\n" + "=" * 60 + "\nAUTO-STARTING FULL PROCESS...\n" + "=" * 60 + "\n"
+                for msg in run_full_process():
+                    yield msg
+            else:
+                yield "\n\nSkipping auto-run: extraction did not complete successfully."
 
         def run_single_extraction(conv_id):
             if not conv_id.strip():
@@ -1533,8 +1596,8 @@ def create_extraction_tab():
 
             yield "\n".join(overall_log)
 
-        extract_btn.click(fn=run_extraction, inputs=[count_input], outputs=[output_log])
-        extract_all_btn.click(fn=run_all_extraction, inputs=[], outputs=[output_log])
+        extract_btn.click(fn=run_extraction_with_auto_process, inputs=[count_input, auto_full_process], outputs=[output_log])
+        extract_all_btn.click(fn=run_all_extraction_with_auto_process, inputs=[auto_full_process], outputs=[output_log])
         extract_one_btn.click(fn=run_single_extraction, inputs=[conv_id_input], outputs=[output_log])
         run_full_process_btn.click(fn=run_full_process, inputs=[], outputs=[full_process_log])
 
