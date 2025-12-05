@@ -3552,6 +3552,7 @@ function updateThemeColor(color) {
 
 def create_upload_tab():
     """Create the JSON upload and auto-parse tab with support for multiple formats."""
+    from config import load_config, save_config
 
     def handle_upload_and_parse(file_path, export_format: str):
         """Handle file upload and automatically trigger parsing.
@@ -3680,6 +3681,36 @@ def create_upload_tab():
 Upload your conversation export file to get started. Select the tab matching your AI assistant.
 Both ChatGPT and Claude exports are named `conversations.json` - use the appropriate tab for your source.
 """)
+
+        # Parsing filter settings
+        with gr.Row():
+            config = load_config()
+            min_turns_input = gr.Number(
+                label="Minimum conversation turns",
+                value=config.get('min_turn_threshold', 4),
+                minimum=1,
+                maximum=100,
+                step=1,
+                info="Conversations with fewer turns are skipped during parsing"
+            )
+            save_threshold_btn = gr.Button("Save", size="sm", variant="secondary")
+            threshold_status = gr.Markdown("")
+
+        def save_min_turns_threshold(min_turns):
+            """Save the minimum turns threshold to config."""
+            try:
+                current_config = load_config()
+                current_config['min_turn_threshold'] = int(min_turns)
+                save_config(current_config)
+                return f"Saved: {int(min_turns)} turns"
+            except Exception as e:
+                return f"Error: {e}"
+
+        save_threshold_btn.click(
+            fn=save_min_turns_threshold,
+            inputs=[min_turns_input],
+            outputs=[threshold_status]
+        )
 
         with gr.Tabs():
             # ChatGPT Upload Tab

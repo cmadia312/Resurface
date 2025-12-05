@@ -200,9 +200,13 @@ def run_extraction(count: int = None, conversation_ids: list = None) -> dict:
         update_status("No conversations to process.", 100, 0, 0, 0, 0, complete=True)
         return {"processed": 0, "empty": 0, "errors": 0, "error_ids": []}
 
-    # Rate limiting setup
-    rpm = config.get('requests_per_minute', 60)
-    delay = 60.0 / rpm
+    # Rate limiting setup (skip for local Ollama)
+    if config.get('api_provider') == 'ollama':
+        rpm = 0
+        delay = 0
+    else:
+        rpm = config.get('requests_per_minute', 60)
+        delay = 60.0 / rpm
 
     # Stats
     stats = {
@@ -216,7 +220,10 @@ def run_extraction(count: int = None, conversation_ids: list = None) -> dict:
     model = config.get('model')
 
     print(f"Extracting {total} conversations using {model}...")
-    print(f"Rate limit: {rpm} requests/minute ({delay:.1f}s between requests)")
+    if config.get('api_provider') == 'ollama':
+        print("Rate limit: None (local Ollama)")
+    else:
+        print(f"Rate limit: {rpm} requests/minute ({delay:.1f}s between requests)")
     print()
 
     # Timing

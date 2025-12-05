@@ -352,10 +352,11 @@ def run_categorization() -> dict:
         update_status(f"Getting LLM scores for {len(ideas)} ideas...", progress_pct=30, elapsed_sec=elapsed, eta_sec=calc_eta(elapsed, 30))
         llm_scores = get_llm_scores(ideas, config)
 
-        # Respect rate limit
-        rate_limit = config.get('requests_per_minute', 60)
-        delay = 60.0 / rate_limit
-        time.sleep(delay)
+        # Respect rate limit (skip for local Ollama)
+        if config.get('api_provider') != 'ollama':
+            rate_limit = config.get('requests_per_minute', 60)
+            delay = 60.0 / rate_limit
+            time.sleep(delay)
 
         # Merge scores and determine categories
         print("\nMerging scores and determining categories...")

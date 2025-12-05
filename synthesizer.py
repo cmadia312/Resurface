@@ -450,8 +450,9 @@ def generate_time_capsule_ideas(categorized: dict, consolidated: dict,
             print(f"Error generating time capsule for {idea.get('name')}: {e}")
             continue
 
-        # Rate limiting
-        time.sleep(1)
+        # Rate limiting (skip for local Ollama)
+        if config.get('api_provider') != 'ollama':
+            time.sleep(1)
 
     return time_capsule_ideas
 
@@ -629,21 +630,24 @@ def run_synthesis() -> dict:
         intersection_ideas = generate_intersection_ideas(themes, tools, profile, config)
         all_generated.extend(intersection_ideas)
         print(f"Generated {len(intersection_ideas)} intersection ideas")
-        time.sleep(1)  # Rate limiting
+        if config.get('api_provider') != 'ollama':
+            time.sleep(1)  # Rate limiting
 
         # Strategy B: Problem-Solutions
         update_status("Generating problem-solution ideas...", progress_pct=45)
         solution_ideas = generate_solution_ideas(problems, tools, profile, config)
         all_generated.extend(solution_ideas)
         print(f"Generated {len(solution_ideas)} solution ideas")
-        time.sleep(1)
+        if config.get('api_provider') != 'ollama':
+            time.sleep(1)
 
         # Strategy D: Profile-based
         update_status("Generating profile-based ideas...", progress_pct=60)
         profile_ideas = generate_profile_ideas(profile, config)
         all_generated.extend(profile_ideas)
         print(f"Generated {len(profile_ideas)} profile-based ideas")
-        time.sleep(1)
+        if config.get('api_provider') != 'ollama':
+            time.sleep(1)
 
         # Strategy F: Time Capsules
         update_status("Generating time capsule ideas...", progress_pct=70)
@@ -655,7 +659,8 @@ def run_synthesis() -> dict:
         update_status("Deduplicating ideas...", progress_pct=80)
         deduped_ideas = deduplicate_generated_ideas(all_generated, config)
         print(f"After deduplication: {len(deduped_ideas)} ideas")
-        time.sleep(1)
+        if config.get('api_provider') != 'ollama':
+            time.sleep(1)
 
         # Score
         update_status("Scoring ideas...", progress_pct=90)

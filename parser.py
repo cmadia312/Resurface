@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass, field
 
+from config import load_config
+
 
 @dataclass
 class Stats:
@@ -289,6 +291,10 @@ def main():
     output_dir = Path('data/parsed')
     export_format = args.format
 
+    # Load config for threshold
+    config = load_config()
+    min_turns = config.get('min_turn_threshold', 4)
+
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -321,8 +327,8 @@ def main():
                 stats.errors.append({'id': conv_id, 'error': error})
                 continue
 
-            # Check trivial filter (< 4 turns)
-            if result['turn_count'] < 4:
+            # Check trivial filter
+            if result['turn_count'] < min_turns:
                 stats.skipped_trivial += 1
                 continue
 
@@ -402,7 +408,7 @@ def main():
     print("=" * 50)
     print(f"Total conversations:    {stats.total}")
     print(f"Parsed:                 {stats.parsed}")
-    print(f"Skipped (trivial <4):   {stats.skipped_trivial}")
+    print(f"Skipped (trivial <{min_turns}):   {stats.skipped_trivial}")
     print(f"Skipped (malformed):    {stats.skipped_malformed}")
     print(f"Total messages:         {stats.total_messages}")
     if date_range:

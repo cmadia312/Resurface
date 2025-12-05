@@ -259,10 +259,11 @@ def consolidate_batch(items: list[dict], item_type: str, config: dict) -> list[d
 
     result = call_llm_for_consolidation(items, item_type, config)
 
-    # Respect rate limit
-    rate_limit = config.get('requests_per_minute', 20)
-    delay = 60.0 / rate_limit
-    time.sleep(delay)
+    # Respect rate limit (skip for local Ollama)
+    if config.get('api_provider') != 'ollama':
+        rate_limit = config.get('requests_per_minute', 20)
+        delay = 60.0 / rate_limit
+        time.sleep(delay)
 
     return result
 
@@ -283,10 +284,11 @@ def consolidate_batch_with_retry(items: list[dict], item_type: str, config: dict
     # Try the LLM call
     result = call_llm_for_consolidation(items, item_type, config)
 
-    # Respect rate limit
-    rate_limit = config.get('requests_per_minute', 20)
-    delay = 60.0 / rate_limit
-    time.sleep(delay)
+    # Respect rate limit (skip for local Ollama)
+    if config.get('api_provider') != 'ollama':
+        rate_limit = config.get('requests_per_minute', 20)
+        delay = 60.0 / rate_limit
+        time.sleep(delay)
 
     if result:  # Successfully parsed
         return result
