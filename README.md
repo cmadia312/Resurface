@@ -4,12 +4,12 @@ A tool for extracting actionable insights from your ChatGPT and Claude conversat
 
 ## Overview
 
-Resurface parses conversation exports from ChatGPT and Claude.ai, extracts meaningful patterns using LLMs (Anthropic Claude or OpenAI GPT), and presents consolidated insights through a web interface. It helps you discover recurring themes, project ideas, problems you're trying to solve, and emotional patterns across your conversations.
+Resurface parses conversation exports from ChatGPT and Claude.ai, extracts meaningful patterns using LLMs (Anthropic Claude, OpenAI GPT, or local models via Ollama), and presents consolidated insights through a web interface. It helps you discover recurring themes, project ideas, problems you're trying to solve, and emotional patterns across your conversations.
 
 ## Features
 
 ### Core Analysis Pipeline
-- **Parse** ChatGPT and Claude JSON exports into clean, normalized conversation files
+- **Parse** ChatGPT and Claude JSON exports into clean, normalized conversation files (with configurable minimum turn threshold to filter trivial conversations)
 - **Extract** insights using LLM analysis:
   - Project ideas with motivation and detail level
   - Problems and pain points (implicit project seeds)
@@ -43,12 +43,16 @@ Resurface parses conversation exports from ChatGPT and Claude.ai, extracts meani
 - **Synthesis**: Generate and evaluate AI-created project ideas
 - **Settings**: Configure API provider, model, theme, and rate limiting
 - **Upload**: Import conversation exports from ChatGPT or Claude (with separate upload tabs for each)
+- **Export**: Export all insights to an Obsidian vault
 
 ### Additional Capabilities
+- **Obsidian vault export**: Export all insights to an Obsidian-compatible markdown vault with wiki-links, YAML frontmatter, and organized folder structure (Ideas, Problems, Tools, Workflows, Conversations)
+- **Customizable prompts**: Define custom extraction, consolidation, categorization, and synthesis prompts to tailor analysis to your needs
+- **Multiple LLM providers**: Use Anthropic Claude, OpenAI GPT, or run locally with Ollama for privacy
 - Resumable extraction with progress tracking
 - Configurable rate limiting for API calls
 - Customizable UI theming
-- Dyslexia-friendly font option
+- Dyslexia-friendly font option (OpenDyslexic)
 
 ## Setup
 
@@ -105,18 +109,22 @@ Edit `config.json`:
   "api_key": "",
   "requests_per_minute": 60,
   "retry_attempts": 2,
-  "theme_color": "#00ff00"
+  "theme_color": "#00ff00",
+  "minimum_turn_threshold": 4,
+  "ollama_host": "http://localhost:11434"
 }
 ```
 
 | Option | Description |
 |--------|-------------|
-| `api_provider` | `"anthropic"` or `"openai"` |
+| `api_provider` | `"anthropic"`, `"openai"`, or `"ollama"` |
 | `model` | Model identifier (e.g., `gpt-4o-mini`, `claude-sonnet-4-20250514`) |
 | `api_key` | API key (or use environment variable instead) |
 | `requests_per_minute` | Rate limiting for API calls |
 | `retry_attempts` | Number of retries for failed API calls |
 | `theme_color` | UI accent color in hex (default: `#00ff00`) |
+| `minimum_turn_threshold` | Minimum conversation turns to include (default: 4) |
+| `ollama_host` | Ollama server URL (default: `http://localhost:11434`) |
 
 ## File Structure
 
@@ -128,6 +136,10 @@ Resurface/
 ├── consolidate.py         # Merge similar items across conversations
 ├── categorize.py          # Score and categorize project ideas
 ├── synthesizer.py         # Generate new ideas from patterns
+├── llm_provider.py        # LLM abstraction (OpenAI, Anthropic, Ollama)
+├── schemas.py             # Pydantic data models
+├── prompts.py             # Prompt templates and customization
+├── obsidian_exporter.py   # Obsidian vault export
 ├── data_management.py     # Status tracking and reset utilities
 ├── config.py              # Configuration management
 ├── ui.py                  # Gradio web interface
@@ -141,7 +153,8 @@ Resurface/
     ├── parsed/            # Individual conversation files (from all sources)
     ├── extractions/       # LLM extraction results
     ├── consolidated/      # Merged insights
-    └── synthesized/       # AI-generated ideas and profiles
+    ├── synthesized/       # AI-generated ideas and profiles
+    └── obsidian-vault/    # Exported Obsidian vault
 ```
 
 ## Contributing
