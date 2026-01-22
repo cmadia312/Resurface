@@ -5,6 +5,7 @@ Resurface UI - Gradio interface for conversation extraction and analysis.
 import json
 import shutil
 import subprocess
+import sys
 import time
 from collections import Counter
 from datetime import datetime
@@ -1227,10 +1228,10 @@ def create_extraction_tab():
 
             if extract_all:
                 yield f"[{timestamp}] Starting extraction of ALL remaining conversations...\n\nThis may take a while. Please wait..."
-                cmd = ["python3", "runner.py", "--all"]
+                cmd = [sys.executable, "runner.py", "--all"]
             else:
                 yield f"[{timestamp}] Starting extraction of {int(count)} conversations...\n\nPlease wait..."
-                cmd = ["python3", "runner.py", "--count", str(int(count))]
+                cmd = [sys.executable, "runner.py", "--count", str(int(count))]
 
             # Clear old status file
             if STATUS_FILE.exists():
@@ -1382,7 +1383,7 @@ def create_extraction_tab():
                 return "Please enter a conversation ID"
             try:
                 result = subprocess.run(
-                    ["python3", "runner.py", "--id", conv_id.strip()],
+                    [sys.executable, "runner.py", "--id", conv_id.strip()],
                     capture_output=True,
                     text=True,
                     cwd=Path(__file__).parent
@@ -1428,7 +1429,7 @@ def create_extraction_tab():
 
             try:
                 consolidation_process = subprocess.Popen(
-                    ["python3", "consolidate.py"],
+                    [sys.executable, "consolidate.py"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     cwd=Path(__file__).parent,
@@ -1493,7 +1494,7 @@ def create_extraction_tab():
 
             try:
                 categorization_process = subprocess.Popen(
-                    ["python3", "categorize.py"],
+                    [sys.executable, "categorize.py"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     cwd=Path(__file__).parent,
@@ -2261,7 +2262,7 @@ def create_consolidated_tab():
             try:
                 # Start process in background
                 process = subprocess.Popen(
-                    ["python3", "consolidate.py"],
+                    [sys.executable, "consolidate.py"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     cwd=Path(__file__).parent,
@@ -2525,7 +2526,7 @@ def create_categories_tab():
             try:
                 # Start process in background
                 process = subprocess.Popen(
-                    ["python3", "categorize.py"],
+                    [sys.executable, "categorize.py"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     cwd=Path(__file__).parent,
@@ -3612,7 +3613,7 @@ def create_upload_tab():
         # Execute parser as subprocess with format argument
         try:
             process = subprocess.Popen(
-                ["python3", "parser.py", "--format", export_format, "--input", str(target_path)],
+                [sys.executable, "parser.py", "--format", export_format, "--input", str(target_path)],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=Path(__file__).parent,
