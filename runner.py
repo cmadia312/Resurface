@@ -13,6 +13,7 @@ Usage:
 import argparse
 import json
 import os
+import platform
 import sys
 import tempfile
 import time
@@ -27,6 +28,19 @@ PARSED_DIR = Path("data/parsed")
 EXTRACTIONS_DIR = Path("data/extractions")
 MANIFEST_FILE = PARSED_DIR / "_manifest.json"
 STATUS_FILE = Path("data/extraction_status.json")
+
+
+def safe_replace(src, dst, retries=3, delay=0.1):
+    """Cross-platform atomic file replace with Windows retry logic."""
+    for attempt in range(retries):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if platform.system() == 'Windows' and attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                raise
 
 
 def update_status(message: str, progress_pct: float,
@@ -53,7 +67,7 @@ def update_status(message: str, progress_pct: float,
     try:
         with os.fdopen(fd, 'w') as f:
             json.dump(status, f)
-        os.replace(tmp_path, STATUS_FILE)  # Atomic on POSIX
+        safe_replace(tmp_path, STATUS_FILE)
     except Exception:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)

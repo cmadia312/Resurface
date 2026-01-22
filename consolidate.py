@@ -6,9 +6,10 @@ Groups similar/duplicate items across extractions using LLM semantic understandi
 Processes in batches and recursively merges until stable.
 """
 import json
-import time
 import os
+import platform
 import tempfile
+import time
 from pathlib import Path
 from datetime import datetime
 
@@ -20,6 +21,19 @@ from prompts import get_prompt
 EXTRACTIONS_DIR = Path("data/extractions")
 CONSOLIDATED_DIR = Path("data/consolidated")
 STATUS_FILE = Path("data/consolidation_status.json")
+
+
+def safe_replace(src, dst, retries=3, delay=0.1):
+    """Cross-platform atomic file replace with Windows retry logic."""
+    for attempt in range(retries):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if platform.system() == 'Windows' and attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                raise
 
 
 def update_status(message: str, progress_pct: float | None = None,
@@ -43,7 +57,7 @@ def update_status(message: str, progress_pct: float | None = None,
     try:
         with os.fdopen(fd, 'w') as f:
             json.dump(status, f)
-        os.replace(tmp_path, STATUS_FILE)  # Atomic on POSIX
+        safe_replace(tmp_path, STATUS_FILE)
     except Exception:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)

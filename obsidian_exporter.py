@@ -7,8 +7,10 @@ with wiki-links, YAML frontmatter, and thematic organization.
 """
 import json
 import os
+import platform
 import re
 import tempfile
+import time
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +33,19 @@ STATUS_FILE = DATA_DIR / "export_status.json"
 # STATUS MANAGEMENT
 # =============================================================================
 
+def safe_replace(src, dst, retries=3, delay=0.1):
+    """Cross-platform atomic file replace with Windows retry logic."""
+    for attempt in range(retries):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if platform.system() == 'Windows' and attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                raise
+
+
 def update_status(message: str, progress_pct: float = None,
                   complete: bool = False, error: bool = False):
     """Atomically update export status for UI polling."""
@@ -48,7 +63,7 @@ def update_status(message: str, progress_pct: float = None,
     try:
         with os.fdopen(fd, 'w') as f:
             json.dump(status, f)
-        os.replace(tmp_path, STATUS_FILE)
+        safe_replace(tmp_path, STATUS_FILE)
     except Exception:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
