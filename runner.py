@@ -86,7 +86,7 @@ def load_manifest() -> dict:
         print("Run parser.py first to generate parsed conversations.")
         sys.exit(1)
 
-    with open(MANIFEST_FILE, 'r') as f:
+    with open(MANIFEST_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
@@ -110,7 +110,7 @@ def get_extraction_status() -> dict:
         if extraction_file.exists():
             extracted += 1
             # Check if it's an error
-            with open(extraction_file, 'r') as f:
+            with open(extraction_file, 'r', encoding='utf-8') as f:
                 extraction = json.load(f)
                 if extraction.get('extraction', {}).get('error'):
                     errors += 1
@@ -160,7 +160,7 @@ def load_conversation(conv_id: str) -> dict | None:
     if not conv_file.exists():
         return None
 
-    with open(conv_file, 'r') as f:
+    with open(conv_file, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 

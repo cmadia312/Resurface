@@ -34,7 +34,7 @@ def load_config() -> dict:
     Creates file with defaults if it doesn't exist.
     """
     if CONFIG_FILE.exists():
-        with open(CONFIG_FILE, 'r') as f:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
             config = json.load(f)
         # Merge with defaults to handle new config options
         merged = {**DEFAULT_CONFIG, **config}

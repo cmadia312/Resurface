@@ -169,10 +169,10 @@ def load_synthesis_inputs() -> tuple[dict, dict] | None:
         print(f"Categorized file not found: {CATEGORIZED_FILE}")
         return None
 
-    with open(CONSOLIDATED_FILE, 'r') as f:
+    with open(CONSOLIDATED_FILE, 'r', encoding='utf-8') as f:
         consolidated = json.load(f)
 
-    with open(CATEGORIZED_FILE, 'r') as f:
+    with open(CATEGORIZED_FILE, 'r', encoding='utf-8') as f:
         categorized = json.load(f)
 
     return consolidated, categorized
@@ -737,7 +737,7 @@ def save_idea(idea_id: str) -> bool:
     if not GENERATED_FILE.exists():
         return False
 
-    with open(GENERATED_FILE, 'r') as f:
+    with open(GENERATED_FILE, 'r', encoding='utf-8') as f:
         generated = json.load(f)
 
     # Find the idea
@@ -755,7 +755,7 @@ def save_idea(idea_id: str) -> bool:
 
     # Load or create saved file
     if SAVED_FILE.exists():
-        with open(SAVED_FILE, 'r') as f:
+        with open(SAVED_FILE, 'r', encoding='utf-8') as f:
             saved = json.load(f)
     else:
         saved = {"ideas": []}
@@ -775,7 +775,7 @@ def dismiss_idea(idea_id: str) -> bool:
     if not GENERATED_FILE.exists():
         return False
 
-    with open(GENERATED_FILE, 'r') as f:
+    with open(GENERATED_FILE, 'r', encoding='utf-8') as f:
         generated = json.load(f)
 
     # Update status
@@ -798,7 +798,7 @@ def develop_idea_further(idea_id: str) -> dict | None:
     idea = None
 
     if SAVED_FILE.exists():
-        with open(SAVED_FILE, 'r') as f:
+        with open(SAVED_FILE, 'r', encoding='utf-8') as f:
             saved = json.load(f)
         for i in saved.get("ideas", []):
             if i.get("id") == idea_id:
@@ -806,7 +806,7 @@ def develop_idea_further(idea_id: str) -> dict | None:
                 break
 
     if idea is None and GENERATED_FILE.exists():
-        with open(GENERATED_FILE, 'r') as f:
+        with open(GENERATED_FILE, 'r', encoding='utf-8') as f:
             generated = json.load(f)
         for i in generated.get("ideas", []):
             if i.get("id") == idea_id:
@@ -819,7 +819,7 @@ def develop_idea_further(idea_id: str) -> dict | None:
     # Load profile for context
     profile_summary = "A developer with various interests."
     if PROFILE_FILE.exists():
-        with open(PROFILE_FILE, 'r') as f:
+        with open(PROFILE_FILE, 'r', encoding='utf-8') as f:
             profile = json.load(f)
         profile_summary = profile.get("summary", profile_summary)
 
@@ -852,7 +852,7 @@ def develop_idea_further(idea_id: str) -> dict | None:
 def get_synthesis_status() -> dict:
     """Get current synthesis status."""
     if STATUS_FILE.exists():
-        with open(STATUS_FILE, 'r') as f:
+        with open(STATUS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {"message": "Not started", "progress": 0, "complete": False}
 
@@ -860,7 +860,7 @@ def get_synthesis_status() -> dict:
 def load_generated_ideas() -> dict:
     """Load generated ideas for UI display."""
     if GENERATED_FILE.exists():
-        with open(GENERATED_FILE, 'r') as f:
+        with open(GENERATED_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {"ideas": [], "by_strategy": {}, "metadata": {}}
 
@@ -868,7 +868,7 @@ def load_generated_ideas() -> dict:
 def load_passion_profile() -> dict:
     """Load passion profile for UI display."""
     if PROFILE_FILE.exists():
-        with open(PROFILE_FILE, 'r') as f:
+        with open(PROFILE_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {}
 
@@ -876,7 +876,7 @@ def load_passion_profile() -> dict:
 def load_saved_ideas() -> list[dict]:
     """Load saved ideas."""
     if SAVED_FILE.exists():
-        with open(SAVED_FILE, 'r') as f:
+        with open(SAVED_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
         return data.get("ideas", [])
     return []
@@ -895,7 +895,7 @@ def get_developed_ideas() -> list[dict]:
     developed = []
     for spec_file in DEVELOPED_DIR.glob("*.json"):
         try:
-            with open(spec_file, 'r') as f:
+            with open(spec_file, 'r', encoding='utf-8') as f:
                 spec = json.load(f)
             developed.append({
                 "idea_id": spec.get("idea_id", spec_file.stem),
@@ -923,7 +923,7 @@ def get_developed_spec(idea_id: str) -> dict | None:
     """
     spec_file = DEVELOPED_DIR / f"{idea_id}.json"
     if spec_file.exists():
-        with open(spec_file, 'r') as f:
+        with open(spec_file, 'r', encoding='utf-8') as f:
             return json.load(f)
     return None
 

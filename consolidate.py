@@ -79,7 +79,7 @@ def load_all_extractions() -> list[dict]:
         if file_path.name == "_manifest.json":
             continue
 
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
         # Skip failed extractions

@@ -73,7 +73,7 @@ def update_status(message: str, progress_pct: float = None,
 def get_status() -> dict:
     """Get current export status."""
     if STATUS_FILE.exists():
-        with open(STATUS_FILE, 'r') as f:
+        with open(STATUS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {"message": "No export in progress", "complete": False}
 
@@ -1264,7 +1264,7 @@ def get_export_manifest() -> dict:
     """Load or create export manifest tracking what's been exported."""
     manifest_path = VAULT_DIR / "_manifest.json"
     if manifest_path.exists():
-        with open(manifest_path, 'r') as f:
+        with open(manifest_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {
         "exported_conversations": [],

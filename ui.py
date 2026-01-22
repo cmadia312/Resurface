@@ -907,7 +907,7 @@ def load_manifest() -> dict:
     """Load the parsed conversations manifest."""
     if not MANIFEST_FILE.exists():
         return {"conversations": [], "total_conversations": 0}
-    with open(MANIFEST_FILE, 'r') as f:
+    with open(MANIFEST_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
@@ -925,7 +925,7 @@ def get_status() -> dict:
 
         if extraction_file.exists():
             extracted += 1
-            with open(extraction_file, 'r') as f:
+            with open(extraction_file, 'r', encoding='utf-8') as f:
                 extraction = json.load(f)
                 if extraction.get('extraction', {}).get('error'):
                     errors += 1
@@ -946,7 +946,7 @@ def load_all_extractions() -> list[dict]:
         return extractions
 
     for f in EXTRACTIONS_DIR.glob("*.json"):
-        with open(f, 'r') as file:
+        with open(f, 'r', encoding='utf-8') as file:
             extractions.append(json.load(file))
 
     return extractions
@@ -957,7 +957,7 @@ def load_conversation(conv_id: str) -> dict | None:
     conv_file = PARSED_DIR / f"{conv_id}.json"
     if not conv_file.exists():
         return None
-    with open(conv_file, 'r') as f:
+    with open(conv_file, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
@@ -966,7 +966,7 @@ def load_extraction(conv_id: str) -> dict | None:
     extraction_file = EXTRACTIONS_DIR / f"{conv_id}.json"
     if not extraction_file.exists():
         return None
-    with open(extraction_file, 'r') as f:
+    with open(extraction_file, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
@@ -1254,7 +1254,7 @@ def create_extraction_tab():
                 while process.poll() is None:  # Process still running
                     if STATUS_FILE.exists():
                         try:
-                            with open(STATUS_FILE, 'r') as f:
+                            with open(STATUS_FILE, 'r', encoding='utf-8') as f:
                                 status = json.load(f)
                             message = status.get('message', '')
                             progress = status.get('progress', 0)
@@ -1292,7 +1292,7 @@ def create_extraction_tab():
                 # Check final status
                 if STATUS_FILE.exists():
                     try:
-                        with open(STATUS_FILE, 'r') as f:
+                        with open(STATUS_FILE, 'r', encoding='utf-8') as f:
                             status = json.load(f)
                         elapsed = status.get('elapsed_seconds', 0)
                         elapsed_str = format_time(elapsed)
@@ -1336,7 +1336,7 @@ def create_extraction_tab():
             extraction_succeeded = False
             if STATUS_FILE.exists():
                 try:
-                    with open(STATUS_FILE, 'r') as f:
+                    with open(STATUS_FILE, 'r', encoding='utf-8') as f:
                         status = json.load(f)
                     extraction_succeeded = status.get('complete', False) and not status.get('error', False)
                 except (json.JSONDecodeError, IOError):
@@ -1365,7 +1365,7 @@ def create_extraction_tab():
             extraction_succeeded = False
             if STATUS_FILE.exists():
                 try:
-                    with open(STATUS_FILE, 'r') as f:
+                    with open(STATUS_FILE, 'r', encoding='utf-8') as f:
                         status = json.load(f)
                     extraction_succeeded = status.get('complete', False) and not status.get('error', False)
                 except (json.JSONDecodeError, IOError):
@@ -1442,7 +1442,7 @@ def create_extraction_tab():
                 while consolidation_process.poll() is None:
                     if consolidation_status_file.exists():
                         try:
-                            with open(consolidation_status_file, 'r') as f:
+                            with open(consolidation_status_file, 'r', encoding='utf-8') as f:
                                 status = json.load(f)
 
                             message = status.get('message', '')
@@ -1507,7 +1507,7 @@ def create_extraction_tab():
                 while categorization_process.poll() is None:
                     if categorization_status_file.exists():
                         try:
-                            with open(categorization_status_file, 'r') as f:
+                            with open(categorization_status_file, 'r', encoding='utf-8') as f:
                                 status = json.load(f)
 
                             message = status.get('message', '')
@@ -2042,7 +2042,7 @@ def load_consolidated_data() -> dict | None:
     """Load consolidated data from disk."""
     if not CONSOLIDATED_FILE.exists():
         return None
-    with open(CONSOLIDATED_FILE, 'r') as f:
+    with open(CONSOLIDATED_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
@@ -2276,7 +2276,7 @@ def create_consolidated_tab():
                 while process.poll() is None:  # Process still running
                     if STATUS_FILE.exists():
                         try:
-                            with open(STATUS_FILE, 'r') as f:
+                            with open(STATUS_FILE, 'r', encoding='utf-8') as f:
                                 status = json.load(f)
                             message = status.get('message', '')
                             progress = status.get('progress', 0)
@@ -2305,7 +2305,7 @@ def create_consolidated_tab():
                 # Check final status
                 if STATUS_FILE.exists():
                     try:
-                        with open(STATUS_FILE, 'r') as f:
+                        with open(STATUS_FILE, 'r', encoding='utf-8') as f:
                             status = json.load(f)
                         elapsed = status.get('elapsed_seconds', 0)
                         elapsed_str = format_time(elapsed)
@@ -2392,7 +2392,7 @@ def load_categorized_data() -> dict | None:
     """Load categorized data from disk."""
     if not CATEGORIZED_FILE.exists():
         return None
-    with open(CATEGORIZED_FILE, 'r') as f:
+    with open(CATEGORIZED_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
@@ -2540,7 +2540,7 @@ def create_categories_tab():
                 while process.poll() is None:  # Process still running
                     if STATUS_FILE.exists():
                         try:
-                            with open(STATUS_FILE, 'r') as f:
+                            with open(STATUS_FILE, 'r', encoding='utf-8') as f:
                                 status = json.load(f)
                             message = status.get('message', '')
                             progress = status.get('progress', 0)
@@ -2575,7 +2575,7 @@ def create_categories_tab():
                 # Check final status
                 if STATUS_FILE.exists():
                     try:
-                        with open(STATUS_FILE, 'r') as f:
+                        with open(STATUS_FILE, 'r', encoding='utf-8') as f:
                             status = json.load(f)
                         elapsed = status.get('elapsed_seconds', 0)
                         elapsed_str = format_time(elapsed)
@@ -3639,7 +3639,7 @@ def create_upload_tab():
                 # Parse successful - load manifest
                 manifest_path = Path("data/parsed/_manifest.json")
                 if manifest_path.exists():
-                    with open(manifest_path, 'r') as f:
+                    with open(manifest_path, 'r', encoding='utf-8') as f:
                         manifest = json.load(f)
 
                     stats = {

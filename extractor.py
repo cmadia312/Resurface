@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
     print(f"Testing extraction on: {sample_file.name}")
 
-    with open(sample_file, 'r') as f:
+    with open(sample_file, 'r', encoding='utf-8') as f:
         conversation = json.load(f)
 
     print(f"Title: {conversation.get('title')}")

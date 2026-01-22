@@ -79,7 +79,7 @@ def load_consolidated() -> dict | None:
     if not CONSOLIDATED_FILE.exists():
         print(f"Consolidated file not found: {CONSOLIDATED_FILE}")
         return None
-    with open(CONSOLIDATED_FILE, 'r') as f:
+    with open(CONSOLIDATED_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
